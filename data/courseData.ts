@@ -196,10 +196,10 @@ export const GRADE_COLOR_MAP: Record<string, string> = {
 };
 
 export const CLASS_AWARDS: ClassAward[] = [
-  { min: 3.70, name: "First Class Honours", code: "FIRST CLASS", color: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" },
-  { min: 3.30, name: "Second Class (Upper Division)", code: "SECOND CLASS (UPPER)", color: "#0284c7", bg: "rgba(2, 132, 199, 0.12)", border: "rgba(2, 132, 199, 0.3)" },
-  { min: 2.70, name: "Second Class (Lower Division)", code: "SECOND CLASS (LOWER)", color: "#d97706", bg: "rgba(217, 119, 6, 0.12)", border: "rgba(217, 119, 6, 0.3)" },
-  { min: 2.00, name: "General Pass", code: "PASS", color: "#f43f5e", bg: "rgba(244, 63, 94, 0.12)", border: "rgba(244, 63, 94, 0.3)" },
+  { min: 3.70, name: "First Class", code: "FIRST CLASS", color: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" },
+  { min: 3.30, name: "Second Class (Upper Division)", code: "SECOND CLASS (UPPER DIVISION)", color: "#0284c7", bg: "rgba(2, 132, 199, 0.12)", border: "rgba(2, 132, 199, 0.3)" },
+  { min: 2.70, name: "Second Class (Lower Division)", code: "SECOND CLASS (LOWER DIVISION)", color: "#d97706", bg: "rgba(217, 119, 6, 0.12)", border: "rgba(217, 119, 6, 0.3)" },
+  { min: 2.00, name: "Pass", code: "PASS", color: "#f43f5e", bg: "rgba(244, 63, 94, 0.12)", border: "rgba(244, 63, 94, 0.3)" },
   { min: 0.00, name: "Fail / Incomplete", code: "INCOMPLETE", color: "#64748b", bg: "rgba(100, 116, 139, 0.12)", border: "rgba(100, 116, 139, 0.2)" }
 ];
 
@@ -207,8 +207,10 @@ export function getClassAward(fgpa: number): ClassAward {
   if (!fgpa || fgpa <= 0) {
     return { min: 0, name: "Pending Evaluation", code: "PENDING", color: "#64748b", bg: "rgba(100, 116, 139, 0.12)", border: "rgba(100, 116, 139, 0.2)" };
   }
+  // The official criteria specifies: "The FGPA will be rounded to the second decimal place"
+  const roundedFgpa = Math.round((fgpa + Number.EPSILON) * 100) / 100;
   for (const award of CLASS_AWARDS) {
-    if (fgpa >= award.min) return award;
+    if (roundedFgpa >= award.min) return award;
   }
   return CLASS_AWARDS[CLASS_AWARDS.length - 1];
 }
@@ -345,6 +347,19 @@ export function calculateAllStats(
     }
   }
 
+  let eGradeCount = 0;
+  for (const yearKey in courseData) {
+    const year = courseData[yearKey];
+    for (const semKey in year.semesters) {
+      const sem = year.semesters[semKey];
+      sem.courses.forEach(c => {
+        if (c.gpa && userGrades[c.code] === 'E') {
+          eGradeCount++;
+        }
+      });
+    }
+  }
+
   const currentFgpa = completedWeightSum > 0 ? (weightedPointsSum / completedWeightSum) : 0;
   const isFullDegreeComplete = completedWeightSum >= 0.99 && totalCompulsoryRemaining === 0 && electiveDeficit === 0;
 
@@ -357,7 +372,9 @@ export function calculateAllStats(
     totalCompulsoryRemaining,
     electiveDeficit,
     isFullDegreeComplete,
-    classAward: getClassAward(currentFgpa)
+    classAward: getClassAward(currentFgpa),
+    hasEGrade: eGradeCount > 0,
+    eGradeCount
   };
 }
 

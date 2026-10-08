@@ -63,6 +63,8 @@ export interface OverallStats {
   electiveDeficit: number;
   isFullDegreeComplete: boolean;
   classAward: ClassAward;
+  hasEGrade?: boolean;
+  eGradeCount?: number;
 }
 
 export type UserGrades = Record<string, Grade | string>;

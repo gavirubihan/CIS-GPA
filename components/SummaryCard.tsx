@@ -25,10 +25,11 @@ export default function SummaryCard({
 
   // Semantic color for class dot & progress
   const getSemanticColor = (fgpa: number) => {
-    if (fgpa >= 3.70) return '#10B981';
-    if (fgpa >= 3.30) return '#3B82F6';
-    if (fgpa >= 2.70) return '#F59E0B';
-    if (fgpa >= 2.00) return '#A1A1AA';
+    const rounded = Math.round((fgpa + Number.EPSILON) * 100) / 100;
+    if (rounded >= 3.70) return '#10B981';
+    if (rounded >= 3.30) return '#3B82F6';
+    if (rounded >= 2.70) return '#F59E0B';
+    if (rounded >= 2.00) return '#A1A1AA';
     return '#EF4444';
   };
 
@@ -66,7 +67,7 @@ export default function SummaryCard({
       </div>
 
       {/* 3. Degree class as refined semantic status badge */}
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <div
           className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
           style={{
@@ -82,6 +83,12 @@ export default function SummaryCard({
           />
           <span className="font-semibold">{classAward.name}</span>
         </div>
+
+        {stats.hasEGrade && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-500 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
+            <span>{stats.eGradeCount} {stats.eGradeCount === 1 ? 'module' : 'modules'} with &apos;E&apos; (Repeat required for graduation)</span>
+          </span>
+        )}
       </div>
 
       {/* 4. Slim 6px progress bar with glowing gradient & threshold ticks */}
