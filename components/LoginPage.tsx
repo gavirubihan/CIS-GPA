@@ -73,8 +73,8 @@ export default function LoginPage() {
       <header className="h-14 w-full border-b border-border bg-background/90 backdrop-blur-md transition-colors">
         <div className="mx-auto flex h-full max-w-[1200px] items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-indigo-500/25 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-2xs">
-              <GraduationCap className="h-4 w-4" strokeWidth={1.5} />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-indigo-500/25 bg-indigo-500/10 shadow-2xs overflow-hidden">
+              <img src="/favicon.svg" alt="CIS GPA Logo" className="h-5 w-5" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-semibold tracking-tight text-foreground">
@@ -112,8 +112,8 @@ export default function LoginPage() {
         </div>
 
         {/* Hero Logo Mark */}
-        <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-indigo-500/25 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-2xs mb-4">
-          <GraduationCap className="h-6 w-6" strokeWidth={1.5} />
+        <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-indigo-500/25 bg-indigo-500/10 shadow-2xs mb-4 overflow-hidden">
+          <img src="/favicon.svg" alt="CIS GPA Logo" className="h-8 w-8" />
         </div>
 
         {/* Title & Description */}
