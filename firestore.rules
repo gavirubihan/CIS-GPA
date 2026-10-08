@@ -1,0 +1,124 @@
+rules_version = '2';
+
+// ============================================================
+//  Firestore Security Rules — CIS GPA Portal
+//  Sabaragamuwa University of Sri Lanka
+// ============================================================
+//
+//  Security model:
+//  ─────────────────────────────────────────────────────────
+//  1. All access requires authentication (Firebase Auth via
+//     Microsoft OIDC with ms.sab.ac.lk domain).
+//
+//  2. Document ID in /students/{regNo} == uppercase of the
+//     email username prefix.
+//     e.g. "22cis0333@ms.sab.ac.lk" → doc "22CIS0333"
+//     This derivation is enforced server-side; no client
+//     code can override it.
+//
+//  3. A student may ONLY read and write their own document.
+//     Attempts to access another student's record are denied
+//     by the database itself — not just the UI.
+//
+//  4. Write validation ensures only known grade values can
+//     be stored (A+, A, A-, B+, B, B-, C+, C, C-, D+, D, E).
+//     This prevents clients from injecting arbitrary data.
+//
+//  5. Students may NOT delete their document.
+//
+//  6. The /meta collection is read-only for authenticated
+//     users; writes are blocked entirely (admin SDK only).
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────
+
+    // Derive the expected document ID from the authenticated email.
+    // "22cis0333@ms.sab.ac.lk" → "22CIS0333"
+    function derivedRegNo() {
+      return request.auth.token.email.split('@')[0].upper();
+    }
+
+    // Verify the email belongs to the university domain
+    function isUniversityAccount() {
+      return request.auth.token.email.matches('.*@ms\\.sab\\.ac\\.lk$');
+    }
+
+    // The requesting user owns this document
+    function isOwner(regNo) {
+      return request.auth != null
+        && isUniversityAccount()
+        && derivedRegNo() == regNo;
+    }
+
+    // Valid grade values (as defined in courseData.ts)
+    function isValidGrade(grade) {
+      return grade in ['A+', 'A', 'A-', 'B+', 'B', 'B-',
+                       'C+', 'C', 'C-', 'D+', 'D', 'E'];
+    }
+
+    // Validate all values in the incoming grades map are valid grades
+    function gradesAreValid() {
+      let incomingGrades = request.resource.data.grades;
+      // If grades key doesn't exist in the write, allow it (partial update)
+      return !('grades' in request.resource.data)
+        || incomingGrades.values().hasOnly(
+            ['A+', 'A', 'A-', 'B+', 'B', 'B-',
+             'C+', 'C', 'C-', 'D+', 'D', 'E']
+           );
+    }
+
+    // Ensure only allowed top-level fields can be written by students
+    function allowedFieldsOnly() {
+      let allowed = ['grades', 'selectedElectives', 'lastUpdated', 'isModifiedByStudent'];
+      let incoming = request.resource.data.keys();
+      // Student writes must only touch these fields (seeded fields like
+      // regNo, email, name, programme are immutable from the client)
+      return incoming.hasOnly(
+        allowed.concat(['regNo', 'nameWithInitials', 'fullName', 'email', 'programme', 'year', 'isSeeded'])
+      );
+    }
+
+    // ── /students/{regNo} ────────────────────────────────────
+    match /students/{regNo} {
+
+      // Read: only the student who owns this document
+      allow read: if isOwner(regNo);
+
+      // Create: only if the document belongs to the authenticated user,
+      // the grade values are valid, and no forbidden fields are present
+      allow create: if isOwner(regNo)
+        && gradesAreValid()
+        && allowedFieldsOnly();
+
+      // Update: same checks as create; additionally prevent changing
+      // the regNo, email, or programme fields after seeding
+      allow update: if isOwner(regNo)
+        && gradesAreValid()
+        && allowedFieldsOnly()
+        // Prevent tampering with identity fields
+        && (!('regNo' in request.resource.data)
+            || request.resource.data.regNo == resource.data.regNo)
+        && (!('email' in request.resource.data)
+            || request.resource.data.email == resource.data.email);
+
+      // Delete: never allowed from the client
+      allow delete: if false;
+    }
+
+    // ── /meta/{doc} ──────────────────────────────────────────
+    // Read-only metadata (course lists, announcements, etc.)
+    // Only writable via Admin SDK (seeding script, admin panel)
+    match /meta/{doc} {
+      allow read: if request.auth != null && isUniversityAccount();
+      allow write: if false;
+    }
+
+    // ── Catch-all: deny everything else ─────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

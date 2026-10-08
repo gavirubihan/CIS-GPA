@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced GPA Calculator</title>
+    <!-- Google Fonts: Inter for a modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background elements for Glassmorphism -->
+    <div class="bg-shape shape1"></div>
+    <div class="bg-shape shape2"></div>
+    <div class="bg-shape shape3"></div>
+
+    <div class="container">
+        <header>
+            <h1>GPA Calculator</h1>
+            <p>Calculate your Year-wise and Final GPA (FGPA)</p>
+        </header>
+
+        <main>
+            <div class="year-tabs" id="yearTabs">
+                <button class="tab-btn active" data-year="year1">Year 1</button>
+                <button class="tab-btn" data-year="year2">Year 2</button>
+                <button class="tab-btn" data-year="year3">Year 3</button>
+                <button class="tab-btn" data-year="year4">Year 4</button>
+            </div>
+
+            <div class="content-area">
+                <div class="courses-container glass-panel" id="coursesContainer">
+                    <!-- Dynamic content will be loaded here via JS -->
+                </div>
+
+                <div class="results-container glass-panel">
+                    <h2>Results Summary</h2>
+                    <div class="results-grid">
+                        <div class="result-card">
+                            <h3>Year 1 GPA</h3>
+                            <div class="score" id="year1Gpa">0.00</div>
+                        </div>
+                        <div class="result-card">
+                            <h3>Year 2 GPA</h3>
+                            <div class="score" id="year2Gpa">0.00</div>
+                        </div>
+                        <div class="result-card">
+                            <h3>Year 3 GPA</h3>
+                            <div class="score" id="year3Gpa">0.00</div>
+                        </div>
+                        <div class="result-card">
+                            <h3>Year 4 GPA</h3>
+                            <div class="score" id="year4Gpa">0.00</div>
+                        </div>
+                    </div>
+                    
+                    <div class="final-results">
+                        <div class="fgpa-card highlight-card">
+                            <h3>Final GPA (FGPA)</h3>
+                            <div class="score big-score" id="fgpaValue">0.00</div>
+                        </div>
+                        <div class="class-award-card highlight-card">
+                            <h3>Class Awarded</h3>
+                            <div class="award-text" id="classAward">Pending</div>
+                        </div>
+                    </div>
+                    <p class="note" id="fgpaNote">Enter all compulsory subjects and required electives across all 4 years to calculate FGPA.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
