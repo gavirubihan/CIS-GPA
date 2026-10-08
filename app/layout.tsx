@@ -30,7 +30,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} dark`} suppressHydrationWarning>
-      <head>
+      <body
+        className={`${inter.className} min-h-screen antialiased selection:bg-indigo-500 selection:text-white`}
+        suppressHydrationWarning
+      >
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -45,11 +48,6 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body
-        className={`${inter.className} min-h-screen antialiased selection:bg-indigo-500 selection:text-white`}
-        suppressHydrationWarning
-      >
         <AuthProvider>
           {children}
         </AuthProvider>
