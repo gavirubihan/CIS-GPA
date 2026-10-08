@@ -30,8 +30,12 @@ function getAdminApp(): App {
 
   const projectId   = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  // Next.js env vars escape newlines — restore them
-  const privateKey  = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  // Netlify & hosting env vars can be wrapped in quotes or have escaped newlines
+  let rawKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (rawKey && rawKey.startsWith('"') && rawKey.endsWith('"')) {
+    rawKey = rawKey.slice(1, -1);
+  }
+  const privateKey = rawKey?.replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
