@@ -42,7 +42,7 @@ export function isUniversityEmail(email: string): boolean {
  * e.g. "22CIS0333" or "22FIS0296"
  */
 export function isValidRegNo(regNo: string): boolean {
-  return /^22(CIS|FIS)\d{4}$/.test(regNo);
+  return /^\d{2}(CIS|FIS)\d{3,5}$/i.test(regNo);
 }
 
 // ── Auth actions ──────────────────────────────────────────────────────────────

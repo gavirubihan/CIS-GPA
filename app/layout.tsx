@@ -29,24 +29,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} dark`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
                 var t = localStorage.getItem('gpa_calc_theme_v3');
-                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark');
-                } else {
+                if (t === 'light') {
                   document.documentElement.classList.remove('dark');
+                } else {
+                  document.documentElement.classList.add('dark');
                 }
               } catch (e) {}
             `,
           }}
         />
       </head>
-      <body className={`${inter.className} min-h-screen antialiased selection:bg-indigo-500 selection:text-white`}>
+      <body
+        className={`${inter.className} min-h-screen antialiased selection:bg-indigo-500 selection:text-white`}
+        suppressHydrationWarning
+      >
         <AuthProvider>
           {children}
         </AuthProvider>

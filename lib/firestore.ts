@@ -66,7 +66,8 @@ function sanitizeElectives(electives: SelectedElectives): Record<string, boolean
 
 /** Fetch a student's Firestore record by registration number. */
 export async function getStudentRecord(regNo: string): Promise<StudentRecord | null> {
-  if (!regNo || !/^22[A-Z]+\d+$/.test(regNo)) {
+  const normalizedReg = regNo?.trim().toUpperCase();
+  if (!normalizedReg || !/^\d{2}[A-Z]+\d+$/i.test(normalizedReg)) {
     console.warn('[Firestore] Invalid regNo format, skipping fetch:', regNo);
     return null;
   }
@@ -91,7 +92,8 @@ export async function saveGrades(
   grades: UserGrades,
   selectedElectives: SelectedElectives
 ): Promise<void> {
-  if (!regNo || !/^22[A-Z]+\d+$/.test(regNo)) {
+  const normalizedReg = regNo?.trim().toUpperCase();
+  if (!normalizedReg || !/^\d{2}[A-Z]+\d+$/i.test(normalizedReg)) {
     throw new Error('Invalid regNo — cannot save grades.');
   }
 

@@ -13,7 +13,8 @@
  */
 
 import { auth } from './firebase';
-import type { StudentRecord } from './firestore';
+import { getStudentRecord, saveGrades, type StudentRecord } from './firestore';
+import { emailToRegNo } from './auth';
 import type { UserGrades, SelectedElectives } from '../types';
 
 // ── Token helper ─────────────────────────────────────────────────────────────
@@ -42,47 +43,99 @@ async function authHeaders(): Promise<Record<string, string>> {
 // ── API calls ─────────────────────────────────────────────────────────────────
 
 /**
- * Fetch the authenticated student's record from the server.
- * Returns null if the student exists in Auth but not in the Firestore DB yet.
+ * Fetch the authenticated student's record.
+ * Primary: /api/student/me (Serverless API with Admin SDK verification)
+ * Fallback: Direct Firestore Client SDK (using secure authenticated security rules)
  */
 export async function fetchStudentRecord(): Promise<{ record: StudentRecord | null; regNo: string } | null> {
+  const user = auth.currentUser;
+  if (!user?.email) {
+    console.warn('[API] fetchStudentRecord: No authenticated user session.');
+    return null;
+  }
+  const regNo = emailToRegNo(user.email);
+
   try {
     const headers = await authHeaders();
     const res = await fetch('/api/student/me', { headers });
 
+    // Authentication refusal
     if (res.status === 401 || res.status === 403) {
       console.warn('[API] fetchStudentRecord unauthorized:', res.status);
       return null;
     }
-    if (!res.ok) {
-      console.error('[API] fetchStudentRecord failed:', res.status, await res.text());
-      return null;
+
+    if (res.ok) {
+      return await res.json();
     }
 
-    return res.json();
+    // Server error (500, 503, etc.): fallback seamlessly to client Firestore SDK
+    console.warn(
+      `[API] /api/student/me returned status ${res.status}. Falling back to direct client Firestore SDK for ${regNo}...`
+    );
+    const record = await getStudentRecord(regNo);
+    return { record, regNo };
   } catch (err) {
-    console.error('[API] fetchStudentRecord error:', err);
-    return null;
+    // Network or function failure: fallback to client Firestore SDK
+    console.warn(
+      '[API] /api/student/me request failed. Falling back to direct client Firestore SDK:',
+      err
+    );
+    try {
+      const record = await getStudentRecord(regNo);
+      return { record, regNo };
+    } catch (fallbackErr) {
+      console.error('[API] Direct Firestore fallback also failed:', fallbackErr);
+      return null;
+    }
   }
 }
 
 /**
- * Save grades and elective selections via the server API.
- * The server derives the regNo from the verified ID token — not from any client input.
+ * Save grades and elective selections.
+ * Primary: /api/student/grades (Serverless API)
+ * Fallback: Direct Firestore Client SDK save (enforced by Firestore security rules)
  */
 export async function saveGradesViaApi(
   grades: UserGrades,
   selectedElectives: SelectedElectives
 ): Promise<void> {
-  const headers = await authHeaders();
-  const res = await fetch('/api/student/grades', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ grades, selectedElectives }),
-  });
+  const user = auth.currentUser;
+  if (!user?.email) throw new Error('Not authenticated');
+  const regNo = emailToRegNo(user.email);
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `Save failed: HTTP ${res.status}`);
+  try {
+    const headers = await authHeaders();
+    const res = await fetch('/api/student/grades', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ grades, selectedElectives }),
+    });
+
+    if (res.ok) {
+      return;
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? `Save failed: HTTP ${res.status}`);
+    }
+
+    // Server error (500, 503, etc.): fallback seamlessly to direct Firestore write
+    console.warn(
+      `[API] /api/student/grades returned status ${res.status}. Falling back to direct client Firestore save for ${regNo}...`
+    );
+    await saveGrades(regNo, grades, selectedElectives);
+  } catch (err: unknown) {
+    const message = (err as Error)?.message ?? '';
+    if (message.includes('Not authenticated') || message.includes('Save failed: HTTP 40')) {
+      throw err;
+    }
+    // Network or server error fallback
+    console.warn(
+      '[API] saveGradesViaApi network error, falling back to direct client Firestore save:',
+      err
+    );
+    await saveGrades(regNo, grades, selectedElectives);
   }
 }

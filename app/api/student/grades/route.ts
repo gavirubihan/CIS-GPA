@@ -34,6 +34,9 @@ import {
   sanitizeElectives,
 } from '@/lib/firebase-admin';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     // ── 1. Verify ID token ────────────────────────────────────────────────────

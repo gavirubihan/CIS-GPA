@@ -30,6 +30,9 @@ import {
   isValidRegNo,
 } from '@/lib/firebase-admin';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     // ── 1. Verify ID token ────────────────────────────────────────────────────
@@ -65,8 +68,8 @@ export async function GET(req: NextRequest) {
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
     const status = e.status ?? 500;
-    const message = status === 500 ? 'Internal server error' : (e.message ?? 'Error');
-    if (status === 500) console.error('[API /student/me GET]', err);
-    return NextResponse.json({ error: message }, { status });
+    const message = e.message ?? 'Internal server error';
+    console.error('[API /student/me GET]', err);
+    return NextResponse.json({ error: message, fallbackAvailable: true }, { status });
   }
 }

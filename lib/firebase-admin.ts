@@ -23,38 +23,91 @@ import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
-// ── Singleton init ────────────────────────────────────────────────────────────
+// ── Singleton lazy init ───────────────────────────────────────────────────────
 
-function getAdminApp(): App {
-  if (getApps().length > 0) return getApps()[0]!;
+let _adminApp: App | null = null;
+
+export function getAdminApp(): App | null {
+  if (_adminApp) return _adminApp;
+  if (getApps().length > 0) {
+    _adminApp = getApps()[0]!;
+    return _adminApp;
+  }
 
   const projectId   = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  // Netlify & hosting env vars can be wrapped in quotes or have escaped newlines
   let rawKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (rawKey && rawKey.startsWith('"') && rawKey.endsWith('"')) {
+
+  if (!projectId || !clientEmail || !rawKey) {
+    console.warn(
+      '[firebase-admin] Missing server environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, or FIREBASE_PRIVATE_KEY).'
+    );
+    return null;
+  }
+
+  // Handle Netlify/hosting environment variable formatting nuances:
+  // 1. Remove wrapping single or double quotes
+  if (
+    (rawKey.startsWith('"') && rawKey.endsWith('"')) ||
+    (rawKey.startsWith("'") && rawKey.endsWith("'"))
+  ) {
     rawKey = rawKey.slice(1, -1);
   }
-  const privateKey = rawKey?.replace(/\\n/g, '\n');
 
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error(
-      '[firebase-admin] Missing environment variables.\n' +
-      'Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY in .env.local\n' +
-      'Get them from: Firebase Console → Project Settings → Service Accounts'
-    );
+  // 2. Decode Base64 key if passed as base64 to avoid line break issues in CI/hosting
+  if (!rawKey.includes('-----BEGIN') && rawKey.length > 200) {
+    try {
+      const decoded = Buffer.from(rawKey, 'base64').toString('utf-8');
+      if (decoded.includes('-----BEGIN')) {
+        rawKey = decoded;
+      }
+    } catch (_) {}
   }
 
-  return initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  // 3. Normalize newlines: unescape \n and remove Windows \r
+  const privateKey = rawKey
+    .replace(/\\r/g, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n');
+
+  try {
+    _adminApp = initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
+      projectId,
+    });
+    return _adminApp;
+  } catch (err) {
+    console.error('[firebase-admin] Failed to initialize App with provided credentials:', err);
+    return null;
+  }
 }
 
-const adminApp = getAdminApp();
+export function getAdminDb() {
+  const app = getAdminApp();
+  return app ? getFirestore(app) : null;
+}
 
-/** Firestore instance — full admin access, no security rules */
-export const adminDb   = getFirestore(adminApp);
+export function getAdminAuth() {
+  const app = getAdminApp();
+  return app ? getAuth(app) : null;
+}
 
-/** Auth instance — can verify ID tokens and manage users */
-export const adminAuth = getAuth(adminApp);
+/**
+ * Proxy object for adminDb that delegates to lazy getAdminDb().
+ * Prevents module evaluation crashes on cold-start if environment variables are not yet loaded.
+ */
+export const adminDb = {
+  collection(name: string) {
+    const db = getAdminDb();
+    if (!db) {
+      throw Object.assign(
+        new Error('Firebase Admin DB is not initialized. Please configure FIREBASE_* environment variables.'),
+        { status: 503 }
+      );
+    }
+    return db.collection(name);
+  },
+};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const UNIVERSITY_DOMAIN = 'ms.sab.ac.lk';
@@ -77,8 +130,15 @@ export async function verifyIdToken(authHeader: string | null) {
     throw Object.assign(new Error('Missing or malformed Authorization header'), { status: 401 });
   }
   const token = authHeader.slice(7);
+  const auth = getAdminAuth();
+  if (!auth) {
+    throw Object.assign(
+      new Error('Firebase Admin Auth is not configured on server (check environment variables)'),
+      { status: 503 }
+    );
+  }
   try {
-    return await adminAuth.verifyIdToken(token, /* checkRevoked= */ true);
+    return await auth.verifyIdToken(token, /* checkRevoked= */ true);
   } catch {
     throw Object.assign(new Error('Invalid or expired ID token'), { status: 401 });
   }
@@ -100,10 +160,10 @@ export function isUniversityEmail(email: string): boolean {
 }
 
 /**
- * Validate the derived regNo has the expected format.
+ * Validate the derived regNo has the expected format (e.g. 22CIS0333, 22FIS0296).
  */
 export function isValidRegNo(regNo: string): boolean {
-  return /^22(CIS|FIS)\d{4}$/.test(regNo);
+  return /^\d{2}(CIS|FIS)\d{3,5}$/i.test(regNo);
 }
 
 /**
