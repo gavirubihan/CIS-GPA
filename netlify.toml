@@ -4,8 +4,13 @@
 
 [build.environment]
   SECRETS_SCAN_OMIT_PATHS = "scripts/**"
+  SECRETS_SCAN_OMIT_KEYS = "FIREBASE_PROJECT_ID,NEXT_PUBLIC_FIREBASE_PROJECT_ID"
 
 [[headers]]
   for = "/*"
   [headers.values]
-    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    # COOP must be unsafe-none (browser default) for Firebase signInWithPopup
+    # to poll window.closed on the OAuth popup across origins.
+    # Netlify doesn't set COOP by default, so no explicit header is needed —
+    # but if your server config has one, override it here.
+    Cross-Origin-Opener-Policy = "unsafe-none"

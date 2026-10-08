@@ -1,36 +1,29 @@
 /**
- * Next.js Middleware — Route Protection
- * ======================================
- * Intercepts every request to protected routes and redirects unauthenticated
- * users to the login page (/).
+ * Next.js Middleware — COOP Header Fix for Firebase signInWithPopup
+ * =================================================================
+ * The Cross-Origin-Opener-Policy header must be set to `unsafe-none` (or
+ * omitted entirely) for Firebase's signInWithPopup to work correctly.
  *
- * NOTE: Firebase Auth uses client-side tokens (JWTs stored in IndexedDB/localStorage).
- * Since middleware runs on the Edge Runtime and cannot access Firebase's client SDK,
- * we use a lightweight session cookie set by the client after login.
+ * The COOP error "would block the window.closed call" is caused by the header
+ * being set to `same-origin` or `same-origin-allow-popups`. Even though
+ * `same-origin-allow-popups` seems permissive, browsers still block the
+ * Firebase auth iframe (*.firebaseapp.com) from accessing window.closed on the
+ * popup it opened, because that iframe is a different origin.
  *
- * The real security enforcement is:
- *   1. Firestore Security Rules (server-enforced, cannot be bypassed)
- *   2. Client-side auth gate in page.tsx (Dashboard only renders when user != null)
- *   3. This middleware (prevents unauthenticated users from even loading the JS bundle)
- *
- * For production hardening you could use Firebase Admin SDK to verify
- * an ID token cookie server-side — but that requires a custom server or
- * API route. For this academic portal, the Firestore rules are the primary
- * security layer and this middleware adds a UX-level gate.
+ * Setting COOP: unsafe-none (which is the browser default if no header is
+ * sent) allows the cross-origin window communication Firebase needs.
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Paths that are always public (no auth required)
-const PUBLIC_PATHS = ['/', '/_next', '/favicon.ico', '/api'];
-
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
   const response = NextResponse.next();
-  // Enable popup window communication for Microsoft OAuth login
-  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+
+  // Allow Firebase signInWithPopup to communicate with the OAuth popup window.
+  // 'unsafe-none' is the browser default — it allows cross-origin window
+  // references which are required for Firebase's window.closed polling.
+  response.headers.set('Cross-Origin-Opener-Policy', 'unsafe-none');
 
   return response;
 }

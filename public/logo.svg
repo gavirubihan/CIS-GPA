@@ -20,7 +20,7 @@
 
   <!-- Logo Mark Squircle (48x48) -->
   <g transform="translate(8, 8)">
-    <rect width="48" height="48" rx="14" fill="url(#logoBgGrad)" stroke="url(#logoBorder)" stroke-width="1.5"/>
+    <rect width="48" height="48" rx="14" fill="url(#logoBgGrad)"/>
     <!-- Graduation Cap -->
     <path d="M24 14 L40 21 L24 28 L8 21 Z" fill="url(#logoPrimaryGrad)"/>
     <path d="M15 25 V31 C15 34.5 19 37 24 37 C29 37 33 34.5 33 31 V25 L24 29.5 Z" fill="url(#logoPrimaryGrad)" opacity="0.9"/>

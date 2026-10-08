@@ -48,33 +48,34 @@ export function isValidRegNo(regNo: string): boolean {
 // ── Auth actions ──────────────────────────────────────────────────────────────
 
 /**
- * Sign in with Microsoft, restricted to the university tenant.
- * After sign-in, verifies the email domain client-side and signs out
- * immediately if a non-university account was used.
+ * Build the Microsoft OAuth provider with university-specific settings.
  */
-export async function signInWithMicrosoft(): Promise<User> {
+function buildMicrosoftProvider(): OAuthProvider {
   const provider = new OAuthProvider('microsoft.com');
   provider.addScope('profile');
   provider.addScope('email');
-  // Parameters for Microsoft identity provider
+
   const customParams: Record<string, string> = {
     domain_hint: UNIVERSITY_DOMAIN,
     prompt: 'select_account',
   };
 
-  // If Azure Tenant ID is specified in .env.local, use it to avoid /common endpoint error (AADSTS50194)
+  // If Azure Tenant ID is specified in env, restrict to the university tenant
+  // to avoid AADSTS50194 (/common endpoint) errors.
   const azureTenantId = process.env.NEXT_PUBLIC_AZURE_TENANT_ID?.trim();
   if (azureTenantId) {
     customParams.tenant = azureTenantId;
   }
 
   provider.setCustomParameters(customParams);
+  return provider;
+}
 
-  const result = await signInWithPopup(auth, provider);
-  const user = result.user;
-
-  // Security gate: if the email is not from the university domain,
-  // sign them out immediately and throw an error.
+/**
+ * Validate a signed-in user's email domain and reg-no format.
+ * Throws (and signs out) if either check fails.
+ */
+async function validateAndReturn(user: User): Promise<User> {
   if (!user.email || !isUniversityEmail(user.email)) {
     await firebaseSignOut(auth);
     throw Object.assign(
@@ -82,8 +83,6 @@ export async function signInWithMicrosoft(): Promise<User> {
       { code: 'auth/wrong-domain' }
     );
   }
-
-  // Validate the derived regNo looks structurally correct
   const regNo = emailToRegNo(user.email);
   if (!isValidRegNo(regNo)) {
     await firebaseSignOut(auth);
@@ -92,8 +91,23 @@ export async function signInWithMicrosoft(): Promise<User> {
       { code: 'auth/invalid-reg-no' }
     );
   }
-
   return user;
+}
+
+/**
+ * Sign in with Microsoft via popup.
+ *
+ * Uses signInWithPopup — more reliable than signInWithRedirect on third-party
+ * hosts (Netlify) since it doesn't require the authDomain to match the app
+ * domain for cross-origin storage handoff.
+ *
+ * The COOP header must be absent or set to `unsafe-none` to allow Firebase
+ * to poll window.closed on the popup window.
+ */
+export async function signInWithMicrosoft(): Promise<User> {
+  const provider = buildMicrosoftProvider();
+  const result = await signInWithPopup(auth, provider);
+  return validateAndReturn(result.user);
 }
 
 /** Sign out the current user */

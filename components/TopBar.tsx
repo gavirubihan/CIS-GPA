@@ -72,9 +72,7 @@ export default function TopBar({
         
         {/* Left: Logo mark + GPA Calculator + Subtitle */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-indigo-500/25 bg-indigo-500/10 shadow-2xs overflow-hidden">
-            <img src="/favicon.svg" alt="CIS GPA Logo" className="h-5 w-5" />
-          </div>
+          <img src="/favicon.svg" alt="CIS GPA Logo" className="h-7 w-7 shrink-0 rounded-[7px]" />
 
           <div className="flex items-baseline gap-2 min-w-0">
             <span className="text-sm font-semibold tracking-tight text-foreground whitespace-nowrap">

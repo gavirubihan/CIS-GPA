@@ -46,23 +46,25 @@ export default function LoginPage() {
     setError(null);
     try {
       await signInWithMicrosoft();
+      // On success onAuthStateChanged fires and AuthProvider updates the user,
+      // which causes this page to unmount — no need to reset loading here.
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
-      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        setError(null); // User cancelled — not an error
+      if (
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request'
+      ) {
+        // User dismissed the popup — silent, no error message
       } else if (code === 'auth/wrong-domain') {
         setError('Only student accounts (@ms.sab.ac.lk) are allowed. Please use your student Microsoft account.');
       } else if (code === 'auth/invalid-reg-no') {
         setError((err as Error).message);
       } else if (code === 'auth/account-exists-with-different-credential') {
         setError('An account already exists with a different sign-in method.');
-      } else if (code === 'auth/popup-blocked') {
-        setError('The sign-in popup was blocked. Please allow popups for this site and try again.');
       } else {
         setError('Sign-in failed. Please try again.');
         console.error('[Auth] Microsoft sign-in error:', err);
       }
-    } finally {
       setIsLoading(false);
     }
   };
@@ -73,9 +75,7 @@ export default function LoginPage() {
       <header className="h-14 w-full border-b border-border bg-background/90 backdrop-blur-md transition-colors">
         <div className="mx-auto flex h-full max-w-[1200px] items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-indigo-500/25 bg-indigo-500/10 shadow-2xs overflow-hidden">
-              <img src="/favicon.svg" alt="CIS GPA Logo" className="h-5 w-5" />
-            </div>
+            <img src="/favicon.svg" alt="CIS GPA Logo" className="h-7 w-7 shrink-0 rounded-[7px]" />
             <div className="flex items-baseline gap-2">
               <span className="text-sm font-semibold tracking-tight text-foreground">
                 GPA Calculator
@@ -111,10 +111,8 @@ export default function LoginPage() {
           <span>BSc (Hons) CIS / IS</span>
         </div>
 
-        {/* Hero Logo Mark */}
-        <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-indigo-500/25 bg-indigo-500/10 shadow-2xs mb-4 overflow-hidden">
-          <img src="/favicon.svg" alt="CIS GPA Logo" className="h-8 w-8" />
-        </div>
+        {/* Hero Logo Mark (Borderless) */}
+        <img src="/favicon.svg" alt="CIS GPA Logo" className="h-12 w-12 rounded-[14px] mb-4 shadow-sm" />
 
         {/* Title & Description */}
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground text-center">
