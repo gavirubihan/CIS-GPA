@@ -112,10 +112,10 @@ export default function TopBar({
             <button
               onClick={onOpenTranscript}
               type="button"
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-accent px-3.5 text-xs font-medium text-[var(--accent-foreground)] hover:bg-[var(--accent-hover)] transition-colors focus-visible:outline-none"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-accent px-3.5 text-xs font-medium text-white hover:bg-accent-hover transition-colors focus-visible:outline-none shadow-2xs"
               title="Open printable transcript"
             >
-              <FileText className="h-4 w-4" strokeWidth={1.5} />
+              <FileText className="h-4 w-4 text-white/90" strokeWidth={1.5} />
               <span>Transcript</span>
             </button>
 
