@@ -67,9 +67,8 @@ export async function GET(req: NextRequest) {
 
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
-    const status = e.status ?? 500;
-    const message = e.message ?? 'Internal server error';
-    console.error('[API /student/me GET]', err);
-    return NextResponse.json({ error: message, fallbackAvailable: true }, { status });
+    const message = e.message ?? 'Server error';
+    console.warn('[API /student/me GET]', message);
+    return NextResponse.json({ record: null, error: message, fallbackAvailable: true }, { status: 200 });
   }
 }

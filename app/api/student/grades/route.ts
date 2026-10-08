@@ -101,9 +101,8 @@ export async function POST(req: NextRequest) {
 
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
-    const status = e.status ?? 500;
-    const message = status === 500 ? 'Internal server error' : (e.message ?? 'Error');
-    if (status === 500) console.error('[API /student/grades POST]', err);
-    return NextResponse.json({ error: message }, { status });
+    const message = e.message ?? 'Server error';
+    console.warn('[API /student/grades POST]', message);
+    return NextResponse.json({ ok: false, error: message }, { status: 200 });
   }
 }

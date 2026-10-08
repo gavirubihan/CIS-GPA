@@ -44,57 +44,37 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 /**
  * Fetch the authenticated student's record.
- * Primary: /api/student/me (Serverless API with Admin SDK verification)
- * Fallback: Direct Firestore Client SDK (using secure authenticated security rules)
+ * Primary: Direct Firestore Client SDK (instant, secure, enforced by Firestore Security Rules)
+ * Fallback: /api/student/me (Serverless API)
  */
 export async function fetchStudentRecord(): Promise<{ record: StudentRecord | null; regNo: string } | null> {
   const user = auth.currentUser;
   if (!user?.email) {
-    console.warn('[API] fetchStudentRecord: No authenticated user session.');
     return null;
   }
   const regNo = emailToRegNo(user.email);
 
   try {
-    const headers = await authHeaders();
-    const res = await fetch('/api/student/me', { headers });
-
-    // Authentication refusal
-    if (res.status === 401 || res.status === 403) {
-      console.warn('[API] fetchStudentRecord unauthorized:', res.status);
-      return null;
-    }
-
-    if (res.ok) {
-      return await res.json();
-    }
-
-    // Server error (500, 503, etc.): fallback seamlessly to client Firestore SDK
-    console.warn(
-      `[API] /api/student/me returned status ${res.status}. Falling back to direct client Firestore SDK for ${regNo}...`
-    );
+    // 1. Direct Firestore client SDK: fast, reliable, zero serverless cold-start
     const record = await getStudentRecord(regNo);
     return { record, regNo };
-  } catch (err) {
-    // Network or function failure: fallback to client Firestore SDK
-    console.warn(
-      '[API] /api/student/me request failed. Falling back to direct client Firestore SDK:',
-      err
-    );
+  } catch (clientErr) {
+    // 2. Resilient fallback: API route
     try {
-      const record = await getStudentRecord(regNo);
-      return { record, regNo };
-    } catch (fallbackErr) {
-      console.error('[API] Direct Firestore fallback also failed:', fallbackErr);
-      return null;
-    }
+      const headers = await authHeaders();
+      const res = await fetch('/api/student/me', { headers });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
+    return null;
   }
 }
 
 /**
  * Save grades and elective selections.
- * Primary: /api/student/grades (Serverless API)
- * Fallback: Direct Firestore Client SDK save (enforced by Firestore security rules)
+ * Primary: Direct Firestore Client SDK save (enforced by Firestore security rules)
+ * Fallback: /api/student/grades (Serverless API)
  */
 export async function saveGradesViaApi(
   grades: UserGrades,
@@ -105,37 +85,19 @@ export async function saveGradesViaApi(
   const regNo = emailToRegNo(user.email);
 
   try {
-    const headers = await authHeaders();
-    const res = await fetch('/api/student/grades', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ grades, selectedElectives }),
-    });
-
-    if (res.ok) {
-      return;
-    }
-
-    if (res.status === 401 || res.status === 403) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error ?? `Save failed: HTTP ${res.status}`);
-    }
-
-    // Server error (500, 503, etc.): fallback seamlessly to direct Firestore write
-    console.warn(
-      `[API] /api/student/grades returned status ${res.status}. Falling back to direct client Firestore save for ${regNo}...`
-    );
+    // 1. Primary: direct Firestore client write
     await saveGrades(regNo, grades, selectedElectives);
-  } catch (err: unknown) {
-    const message = (err as Error)?.message ?? '';
-    if (message.includes('Not authenticated') || message.includes('Save failed: HTTP 40')) {
-      throw err;
-    }
-    // Network or server error fallback
-    console.warn(
-      '[API] saveGradesViaApi network error, falling back to direct client Firestore save:',
-      err
-    );
-    await saveGrades(regNo, grades, selectedElectives);
+  } catch (err) {
+    // 2. Fallback: try API route
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/student/grades', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ grades, selectedElectives }),
+      });
+      if (res.ok) return;
+    } catch (_) {}
+    throw err;
   }
 }

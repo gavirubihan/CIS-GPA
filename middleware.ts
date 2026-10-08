@@ -28,14 +28,11 @@ const PUBLIC_PATHS = ['/', '/_next', '/favicon.ico', '/api'];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths to pass through
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
-  if (isPublic) return NextResponse.next();
+  const response = NextResponse.next();
+  // Enable popup window communication for Microsoft OAuth login
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
 
-  // For protected routes (/dashboard, /admin, etc.):
-  // The client-side auth check in page.tsx handles the actual gate.
-  // Middleware here just passes through — Firestore rules are the real barrier.
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

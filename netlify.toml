@@ -4,3 +4,8 @@
 
 [build.environment]
   SECRETS_SCAN_OMIT_PATHS = "scripts/**"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
