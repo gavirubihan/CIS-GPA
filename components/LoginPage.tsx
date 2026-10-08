@@ -81,7 +81,7 @@ export default function LoginPage() {
                 GPA Calculator
               </span>
               <span className="hidden sm:inline text-xs text-secondary">
-                BSc (Hons) Information Systems
+                BSc (Hons) CIS / IS
               </span>
             </div>
           </div>
@@ -108,7 +108,7 @@ export default function LoginPage() {
         {/* Project Badge */}
         <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs text-secondary font-medium shadow-2xs mb-5">
           <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
-          <span>BSc (Hons) Information Systems</span>
+          <span>BSc (Hons) CIS / IS</span>
         </div>
 
         {/* Hero Logo Mark */}
@@ -206,7 +206,7 @@ export default function LoginPage() {
       {/* Footer */}
       <footer className="py-6 px-4 text-center border-t border-border-hairline mt-auto">
         <p className="text-xs text-secondary">
-          BSc (Hons) Information Systems · Student GPA Calculator
+          BSc (Hons) CIS / IS · Student GPA Calculator
         </p>
         <p className="text-[11px] text-secondary/70 mt-1">
           Personal project for calculating and forecasting academic performance

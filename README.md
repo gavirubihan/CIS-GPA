@@ -1,4 +1,4 @@
-# BSc (Hons) Information Systems – GPA Calculator & Academic Planner
+# BSc (Hons) CIS / IS – GPA Calculator & Academic Planner
 
 A modern, high-performance web application designed for students to track modules, compute real-time cumulative weighted GPA (FGPA), forecast target degree classes, and manage academic progress.
 
@@ -33,7 +33,7 @@ Built with **Next.js 15 (App Router)**, **React 19**, **TypeScript**, **Tailwind
 
 ## Overview
 
-The GPA Calculator is tailored to the four-year **B.Sc. (Hons) Information Systems** curriculum. It provides an intuitive, high-craft 2026 dashboard interface (inspired by modern developer tools like Linear, Vercel, and Stripe) allowing students to:
+The GPA Calculator is tailored to the four-year **B.Sc. (Hons) CIS / IS** curriculum. It provides an intuitive, high-craft 2026 dashboard interface (inspired by modern developer tools like Linear, Vercel, and Stripe) allowing students to:
 
 1. View preloaded academic results synchronized from department records.
 2. Calculate and simulate semester GPAs, year GPAs, and final cumulative GPA (FGPA).

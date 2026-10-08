@@ -81,7 +81,7 @@ export default function TopBar({
               GPA Calculator
             </span>
             <span className="hidden sm:inline text-xs text-secondary truncate">
-              BSc (Hons) Information Systems
+              BSc (Hons) CIS / IS
             </span>
           </div>
 

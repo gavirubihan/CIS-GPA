@@ -93,7 +93,7 @@ export default function TranscriptView({
                   Faculty of Applied Sciences · Department of CIS
                 </h1>
                 <p className="text-xs text-secondary mt-0.5">
-                  B.Sc. (Hons) in Information Systems
+                  B.Sc. (Hons) in CIS / IS
                 </p>
               </div>
 
