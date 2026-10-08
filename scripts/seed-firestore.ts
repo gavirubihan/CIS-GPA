@@ -30,7 +30,7 @@ function initFirebaseAdmin() {
     const sa = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
     return initializeApp({
       credential: cert(sa),
-      projectId: sa.project_id || 'cis-gpa',
+      projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID,
     });
   }
 
@@ -215,8 +215,8 @@ async function seed() {
     console.log(`  ⬆ Uploaded ${Math.min(i + BATCH_SIZE, allRows.length)} / ${allRows.length}`);
   }
 
-  console.log(`\n✅ Done! ${count} student records seeded to Firestore.`);
-  console.log('🎉 Students can now log in at https://cis-gpa.web.app');
+  console.log('\n✅ Done! ' + count + ' student records seeded to Firestore.');
+  console.log('🎉 Seeding complete. Students can now log in to the portal.');
 }
 
 seed().catch((err) => {
