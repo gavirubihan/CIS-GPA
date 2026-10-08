@@ -139,15 +139,15 @@ export default function TopBar({
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               type="button"
-              className="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-surface px-2 text-xs font-medium text-foreground hover:bg-raised transition-colors focus-visible:outline-none"
+              className="flex h-9 items-center gap-2 rounded-[8px] border border-border bg-surface px-2 sm:px-2.5 text-xs font-medium text-foreground hover:bg-raised transition-colors focus-visible:outline-none"
               aria-expanded={menuOpen}
               aria-haspopup="true"
               aria-label="User account menu"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-[11px] font-semibold text-white shadow-2xs">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-[11px] font-semibold text-white shadow-2xs">
                 {avatarLetter}
               </span>
-              <span className="hidden md:inline font-mono text-xs text-foreground">
+              <span className="font-mono text-xs text-foreground truncate max-w-[90px] sm:max-w-none">
                 {regNo || 'Account'}
               </span>
             </button>
