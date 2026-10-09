@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '../components/AuthProvider';
@@ -48,15 +49,30 @@ export const metadata: Metadata = {
     locale: 'en_LK',
     url: 'https://cis-gpa.netlify.app',
     siteName: 'CIS GPA Portal',
-    title: 'CIS GPA Portal | BSc (Hons) CIS / IS — Sabaragamuwa University',
+    title: 'CIS GPA Portal | BSc (Hons) CIS / IS',
     description:
-      'Official Grade Management & Weighted GPA Calculator Portal for BSc (Hons) CIS and IS undergraduates at Sabaragamuwa University of Sri Lanka. Calculate weighted FGPA, track semester modules, and plan target honors classifications.',
+      'Official Grade Management & Weighted GPA Calculator Portal for BSc (Hons) CIS and IS undergraduates. Calculate weighted FGPA, track semester modules, and forecast degree classifications.',
     images: [
+      {
+        url: '/og-image.webp',
+        width: 1200,
+        height: 630,
+        type: 'image/webp',
+        alt: 'CIS GPA Portal — BSc (Hons) CIS / IS',
+      },
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        type: 'image/jpeg',
+        alt: 'CIS GPA Portal — BSc (Hons) CIS / IS',
+      },
       {
         url: '/og-image.png',
         width: 1200,
-        height: 675,
-        alt: 'CIS GPA Portal — BSc (Hons) CIS / IS Sabaragamuwa University of Sri Lanka',
+        height: 630,
+        type: 'image/png',
+        alt: 'CIS GPA Portal — BSc (Hons) CIS / IS',
       },
     ],
   },
@@ -64,8 +80,15 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'CIS GPA Portal | BSc (Hons) CIS / IS',
     description:
-      'Official Grade Management & Weighted GPA Calculator Portal for BSc (Hons) CIS and IS undergraduates at Sabaragamuwa University of Sri Lanka.',
-    images: ['/og-image.png'],
+      'Official Grade Management & Weighted GPA Calculator Portal for BSc (Hons) CIS and IS undergraduates. Calculate weighted FGPA, track semester modules, and forecast degree classifications.',
+    images: [
+      {
+        url: '/og-image.webp',
+        width: 1200,
+        height: 630,
+        alt: 'CIS GPA Portal — BSc (Hons) CIS / IS',
+      },
+    ],
   },
 };
 
@@ -86,6 +109,17 @@ export default function RootLayout({
         className={`${inter.className} min-h-screen antialiased selection:bg-indigo-500 selection:text-white`}
         suppressHydrationWarning
       >
+        {/* Microsoft Clarity Analytics */}
+        <Script id="microsoft-clarity" strategy="afterInteractive">
+          {`
+            (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "yv4ydkp48x");
+          `}
+        </Script>
+
         <script
           dangerouslySetInnerHTML={{
             __html: `

@@ -39,7 +39,7 @@ export default function UnsavedChangesBar({
               </span>
             </p>
             <p className="hidden sm:block text-[11px] text-secondary truncate">
-              Click save to commit changes to your cloud student profile.
+              Click save to sync changes to the database.
             </p>
           </div>
         </div>

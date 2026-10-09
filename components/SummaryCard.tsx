@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Target, ArrowRight } from 'lucide-react';
 import { OverallStats, ActiveTab } from '../types';
 import { courseData } from '../data/courseData';
 import { getGpaColor } from '../lib/gradeStyles';
@@ -197,6 +198,32 @@ export default function SummaryCard({
             style={{ width: `${creditCompletionRatio}%` }}
           />
         </div>
+      </div>
+
+      {/* 7. Target degree planner quick navigation */}
+      <div className="mt-4 border-t border-border-hairline pt-3">
+        <button
+          onClick={() => onSelectYear('planner')}
+          type="button"
+          className={`flex w-full items-center justify-between rounded-[9px] border p-2.5 text-xs transition-all cursor-pointer ${
+            activeTab === 'planner'
+              ? 'border-accent bg-accent/10 text-accent font-semibold shadow-xs'
+              : 'border-border bg-raised/40 hover:bg-raised text-foreground hover:border-accent/40'
+          }`}
+          title="Open Target degree planner to forecast required grades for honors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-accent/15 text-accent">
+              <Target className="h-3.5 w-3.5" strokeWidth={2} />
+            </div>
+            <span className="font-medium truncate">Target degree planner</span>
+          </div>
+
+          <span className="text-[11px] font-semibold text-accent flex items-center gap-1 shrink-0">
+            <span>Forecast</span>
+            <ArrowRight className="h-3 w-3" />
+          </span>
+        </button>
       </div>
     </div>
   );

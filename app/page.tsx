@@ -329,23 +329,25 @@ function DashboardInner() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-200 pb-16">
-      {/* 56px Top Bar */}
-      <TopBar
-        onExport={handleExport}
-        onOpenTranscript={() => setIsTranscriptOpen(true)}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        showCompactGpa={!isSummaryCardVisible}
-        compactGpaValue={stats.currentFgpa.toFixed(2)}
-        studentName={dbStudentName}
-        unsavedCount={unsavedCount}
-        isSaving={isSaving}
-        onSave={handleSave}
-      />
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-200 pb-16 print:min-h-0 print:pb-0 print:p-0 print:bg-white">
+      {/* 56px Top Bar (Hidden in print) */}
+      <div className="no-print print:hidden">
+        <TopBar
+          onExport={handleExport}
+          onOpenTranscript={() => setIsTranscriptOpen(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          showCompactGpa={!isSummaryCardVisible}
+          compactGpaValue={stats.currentFgpa.toFixed(2)}
+          studentName={dbStudentName}
+          unsavedCount={unsavedCount}
+          isSaving={isSaving}
+          onSave={handleSave}
+        />
+      </div>
 
-      {/* Main Container: Max width 1200px, centered */}
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+      {/* Main Container: Max width 1200px, centered (Hidden in print) */}
+      <div id="dashboard-main-content" className="mx-auto max-w-[1200px] px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8 no-print print:hidden">
         
         {/* Mobile View (<1024px): Summary Card rendered first */}
         <div className="block lg:hidden">
@@ -362,40 +364,49 @@ function DashboardInner() {
           
           {/* Main Column (8/12) */}
           <main className="lg:col-span-8 space-y-6 sm:space-y-8 min-w-0">
-            {/* 1. Year tabs (segmented control) */}
+            {/* 1. Year tabs (segmented control including Target Planner) */}
             <YearTabs
               activeTab={activeTab}
               onSelectTab={setActiveTab}
               yearlyStats={stats.yearlyStats}
             />
 
-            {/* 2. Module table: Desktop table (>=768px) and Mobile stacked list (<768px) with smooth tab transition */}
-            <div key={`desktop-${activeTab}`} className="hidden sm:block tab-transition">
-              <ModuleTable
-                activeTab={activeTab}
-                userGrades={userGrades}
-                selectedElectives={selectedElectives}
-                yearlyStats={stats.yearlyStats}
-                onGradeChange={handleGradeChange}
-                onElectiveToggle={handleElectiveToggle}
-                onSelectYear={(tab) => setActiveTab(tab as ActiveTab)}
-              />
-            </div>
+            {activeTab === 'planner' ? (
+              /* Dedicated Target Planner Workspace */
+              <div key="tab-planner" className="tab-transition space-y-4">
+                <TargetPlanner stats={stats} forceOpen={true} />
+              </div>
+            ) : (
+              <>
+                {/* 2. Prominent Target Planner Smart Card positioned ABOVE modules for instant discovery */}
+                <TargetPlanner stats={stats} />
 
-            <div key={`mobile-${activeTab}`} className="block sm:hidden tab-transition">
-              <ModuleList
-                activeTab={activeTab}
-                userGrades={userGrades}
-                selectedElectives={selectedElectives}
-                yearlyStats={stats.yearlyStats}
-                onGradeChange={handleGradeChange}
-                onElectiveToggle={handleElectiveToggle}
-                onSelectYear={(tab) => setActiveTab(tab as ActiveTab)}
-              />
-            </div>
+                {/* 3. Module table: Desktop table (>=768px) and Mobile stacked list (<768px) with smooth tab transition */}
+                <div key={`desktop-${activeTab}`} className="hidden sm:block tab-transition">
+                  <ModuleTable
+                    activeTab={activeTab}
+                    userGrades={userGrades}
+                    selectedElectives={selectedElectives}
+                    yearlyStats={stats.yearlyStats}
+                    onGradeChange={handleGradeChange}
+                    onElectiveToggle={handleElectiveToggle}
+                    onSelectYear={(tab) => setActiveTab(tab as ActiveTab)}
+                  />
+                </div>
 
-            {/* 3. Forecaster as collapsed section titled "Target planner" */}
-            <TargetPlanner stats={stats} />
+                <div key={`mobile-${activeTab}`} className="block sm:hidden tab-transition">
+                  <ModuleList
+                    activeTab={activeTab}
+                    userGrades={userGrades}
+                    selectedElectives={selectedElectives}
+                    yearlyStats={stats.yearlyStats}
+                    onGradeChange={handleGradeChange}
+                    onElectiveToggle={handleElectiveToggle}
+                    onSelectYear={(tab) => setActiveTab(tab as ActiveTab)}
+                  />
+                </div>
+              </>
+            )}
           </main>
 
           {/* Desktop Sticky Side Panel (4/12) */}
@@ -413,13 +424,15 @@ function DashboardInner() {
         </div>
       </div>
 
-      {/* Floating Unsaved Changes Action Dock */}
-      <UnsavedChangesBar
-        unsavedCount={unsavedCount}
-        isSaving={isSaving}
-        onSave={handleSave}
-        onDiscard={handleDiscard}
-      />
+      {/* Floating Unsaved Changes Action Dock (Hidden in print) */}
+      <div id="unsaved-changes-dock" className="no-print print:hidden">
+        <UnsavedChangesBar
+          unsavedCount={unsavedCount}
+          isSaving={isSaving}
+          onSave={handleSave}
+          onDiscard={handleDiscard}
+        />
+      </div>
 
       {/* Transcript Modal & Printable Document */}
       <TranscriptView

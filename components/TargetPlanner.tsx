@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, ChevronUp, Target, CheckCircle2 } from 'lucide-react';
 import { OverallStats } from '../types';
 import { courseData } from '../data/courseData';
 
 interface TargetPlannerProps {
   stats: OverallStats;
+  forceOpen?: boolean;
 }
 
 interface TargetClassOption {
@@ -36,9 +37,15 @@ function getGradeAdvice(avgGpa: number | null): string {
   return 'Passing grades required';
 }
 
-export default function TargetPlanner({ stats }: TargetPlannerProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function TargetPlanner({ stats, forceOpen = false }: TargetPlannerProps) {
+  const [isOpen, setIsOpen] = useState(forceOpen);
   const [selectedTarget, setSelectedTarget] = useState<number>(3.70);
+
+  useEffect(() => {
+    if (forceOpen) {
+      setIsOpen(true);
+    }
+  }, [forceOpen]);
 
   const { yearlyStats, currentFgpa } = stats;
 
@@ -172,17 +179,37 @@ export default function TargetPlanner({ stats }: TargetPlannerProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center justify-between p-4 sm:p-4.5 text-left hover:bg-raised/40 transition-colors focus-visible:outline-none"
+        className="flex w-full items-center justify-between p-3.5 sm:p-4 text-left hover:bg-raised/40 transition-colors focus-visible:outline-none cursor-pointer"
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
-            <Sparkles className="h-3.5 w-3.5" />
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-accent/10 text-accent border border-accent/20">
+            <Target className="h-4 w-4" strokeWidth={2} />
           </div>
-          <div className="min-w-0">
-            <span className="text-sm font-semibold text-foreground tracking-tight block truncate">
+          <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
+            <span className="text-sm font-semibold text-foreground tracking-tight">
               Target degree planner
             </span>
+
+            {/* Live forecast status chip visible when collapsed */}
+            {!isOpen && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border"
+                style={{
+                  backgroundColor: `${statusColor}12`,
+                  borderColor: `${statusColor}30`,
+                  color: statusColor,
+                }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+                <span>
+                  {currentClassOption.shortLabel}:{' '}
+                  <strong className="font-mono">
+                    {isTargetSecured ? 'Secured' : requiredAvgGpa ? `${requiredAvgGpa.toFixed(2)} req` : '—'}
+                  </strong>
+                </span>
+              </span>
+            )}
           </div>
         </div>
 

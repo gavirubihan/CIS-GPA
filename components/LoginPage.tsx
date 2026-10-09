@@ -9,7 +9,9 @@ import {
   Loader2, 
   AlertCircle,
   Sun,
-  Moon
+  Moon,
+  Info,
+  ArrowRight
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -141,45 +143,83 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Microsoft Single Sign-On Button */}
+          {/* Microsoft Single Sign-On Primary CTA */}
           <button
             onClick={handleSignIn}
             disabled={isLoading}
             type="button"
-            className="w-full flex items-center justify-center gap-3 rounded-[10px] border border-border bg-surface hover:bg-raised text-foreground text-sm font-medium py-3 px-4 transition-colors duration-150 shadow-2xs active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none"
+            className="group w-full flex items-center justify-between rounded-[12px] bg-[#0F172A] hover:bg-[#1E293B] dark:bg-[#18181B] dark:hover:bg-[#222228] dark:border dark:border-[#2C2C36] text-white text-sm font-semibold py-3.5 px-4.5 transition-all duration-150 shadow-sm hover:shadow active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none cursor-pointer"
           >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-secondary" />
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 21 21" fill="none" className="shrink-0" aria-hidden="true">
-                <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-                <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-                <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-                <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-              </svg>
-            )}
-            <span>{isLoading ? 'Connecting to Microsoft…' : 'Sign in with Microsoft'}</span>
+            <div className="flex items-center gap-3">
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-white/70" />
+              ) : (
+                <div className="flex h-6 w-6 items-center justify-center rounded-[6px] bg-white p-1 shrink-0 shadow-2xs">
+                  <svg width="16" height="16" viewBox="0 0 21 21" fill="none" aria-hidden="true">
+                    <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+                    <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+                    <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+                    <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+                  </svg>
+                </div>
+              )}
+              <div className="text-left">
+                <span className="block leading-tight text-white font-semibold">
+                  {isLoading ? 'Connecting to Microsoft…' : 'Sign in with Microsoft'}
+                </span>
+                <span className="block text-[11px] font-normal text-white/70 mt-0.5">
+                  Single Sign-On for Student Accounts
+                </span>
+              </div>
+            </div>
+
+            <ArrowRight className="h-4 w-4 text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0" />
           </button>
 
           {/* Hairline Divider */}
           <div className="my-5 border-t border-border-hairline" />
 
-          {/* Student Email Instruction Callout */}
-          <div className="rounded-[10px] border border-border-hairline bg-raised/50 p-3.5 space-y-2.5 text-xs text-secondary">
+          {/* Student Email Requirement Note (Interactive fallback so clicks trigger sign-in) */}
+          <div
+            onClick={handleSignIn}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleSignIn();
+              }
+            }}
+            className="rounded-[12px] border border-border-hairline bg-raised/40 hover:bg-raised/70 p-3.5 space-y-2.5 text-xs transition-colors cursor-pointer group"
+            title="Click to sign in with your student Microsoft account"
+          >
             <div className="flex items-start gap-2.5">
-              <LogIn className="h-4 w-4 mt-0.5 text-secondary shrink-0" strokeWidth={1.5} />
-              <div className="leading-relaxed">
-                <span>Sign in with your student index email address:</span>
-                <div className="mt-1">
-                  <code className="font-mono text-[11px] text-foreground bg-surface border border-border px-2 py-0.5 rounded-[5px] inline-block">
-                    22cis0333@ms.sab.ac.lk
-                  </code>
-                </div>
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-500 mt-0.5">
+                <Info className="h-3.5 w-3.5" strokeWidth={2} />
+              </div>
+              <div className="leading-relaxed text-secondary min-w-0">
+                <span className="font-semibold text-foreground block text-xs">
+                  Student Account Requirement
+                </span>
+                <p className="mt-0.5 text-[11.5px]">
+                  When the Microsoft sign-in window opens, select or enter your university index email:
+                </p>
+                <p className="mt-1 font-mono text-[11.5px] font-medium text-foreground">
+                  <span className="text-secondary">22cisXXXX</span>@ms.sab.ac.lk
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2.5 pt-2 border-t border-border-hairline">
-              <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" strokeWidth={1.5} />
-              <span className="text-[11px]">Results are private and automatically saved to your profile</span>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border-hairline text-[11px] text-secondary">
+              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                <span>Private &amp; secure grade access</span>
+              </span>
+
+              <span className="text-accent group-hover:underline font-medium text-[10.5px] flex items-center gap-0.5">
+                <span>Continue</span>
+                <span>→</span>
+              </span>
             </div>
           </div>
         </div>
