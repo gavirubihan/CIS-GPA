@@ -34,6 +34,7 @@ Results*.xls
 *.zip
 *.tar.gz
 *.rar
+.cache/
 
 # Debug logs
 npm-debug.log*

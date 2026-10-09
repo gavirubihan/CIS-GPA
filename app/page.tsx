@@ -9,6 +9,7 @@ import ModuleList from '../components/ModuleList';
 import TargetPlanner from '../components/TargetPlanner';
 import TranscriptView from '../components/TranscriptView';
 import LoginPage from '../components/LoginPage';
+import UnsavedChangesBar from '../components/UnsavedChangesBar';
 import { ToastProvider, useToast } from '../components/Toast';
 import { useAuth } from '../components/AuthProvider';
 import { fetchStudentRecord, saveGradesViaApi } from '../lib/api-client';
@@ -78,19 +79,23 @@ function DashboardInner() {
   const { user, regNo, isValidUniversityAccount } = useAuth();
   const { showToast } = useToast();
 
+  // Active working state for simulation & calculation
   const [userGrades, setUserGrades] = useState<UserGrades>({});
   const [selectedElectives, setSelectedElectives] = useState<SelectedElectives>({});
+
+  // Saved baseline state in cloud database
+  const [savedGrades, setSavedGrades] = useState<UserGrades>({});
+  const [savedElectives, setSavedElectives] = useState<SelectedElectives>({});
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('year1');
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const [isMounted, setIsMounted] = useState(false);
   const [dbStudentName, setDbStudentName] = useState<string | undefined>(undefined);
   const [isLoadingFromDb, setIsLoadingFromDb] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isSummaryCardVisible, setIsSummaryCardVisible] = useState(true);
 
-  // Debounce timer for auto-save
-  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const hasUserEdited = useRef(false);
   const hasLoadedToastFired = useRef(false);
 
   // 1. Initial Theme Setup: System preference with manual override
@@ -120,21 +125,43 @@ function DashboardInner() {
         const result = await fetchStudentRecord();
         if (result?.record) {
           const record = result.record;
-          setUserGrades((record.grades as UserGrades) || {});
-          setSelectedElectives(record.selectedElectives || {});
+          const recGrades = (record.grades as UserGrades) || {};
+          const recElectives = record.selectedElectives || {};
+
+          setUserGrades(recGrades);
+          setSavedGrades(recGrades);
+          setSelectedElectives(recElectives);
+          setSavedElectives(recElectives);
+
+          // If student has Year 2 grades, default active tab to year2
+          const hasYear2 = Object.keys(recGrades).some((k) => k.startsWith('IS3') || k.startsWith('IS4'));
+          if (hasYear2) {
+            setActiveTab('year2');
+          }
+
           setDbStudentName(record.nameWithInitials || record.fullName);
         } else {
-          const savedGrades = localStorage.getItem(STORAGE_KEY_GRADES);
-          const savedElectives = localStorage.getItem(STORAGE_KEY_ELECTIVES);
-          if (savedGrades) setUserGrades(JSON.parse(savedGrades));
-          if (savedElectives) setSelectedElectives(JSON.parse(savedElectives));
+          const localGradesStr = localStorage.getItem(STORAGE_KEY_GRADES);
+          const localElectivesStr = localStorage.getItem(STORAGE_KEY_ELECTIVES);
+          const localGrades = localGradesStr ? JSON.parse(localGradesStr) : {};
+          const localElectives = localElectivesStr ? JSON.parse(localElectivesStr) : {};
+
+          setUserGrades(localGrades);
+          setSavedGrades(localGrades);
+          setSelectedElectives(localElectives);
+          setSavedElectives(localElectives);
         }
       } catch (err) {
         console.error('[Dashboard] Failed to load data from API:', err);
-        const savedGrades = localStorage.getItem(STORAGE_KEY_GRADES);
-        const savedElectives = localStorage.getItem(STORAGE_KEY_ELECTIVES);
-        if (savedGrades) setUserGrades(JSON.parse(savedGrades));
-        if (savedElectives) setSelectedElectives(JSON.parse(savedElectives));
+        const localGradesStr = localStorage.getItem(STORAGE_KEY_GRADES);
+        const localElectivesStr = localStorage.getItem(STORAGE_KEY_ELECTIVES);
+        const localGrades = localGradesStr ? JSON.parse(localGradesStr) : {};
+        const localElectives = localElectivesStr ? JSON.parse(localElectivesStr) : {};
+
+        setUserGrades(localGrades);
+        setSavedGrades(localGrades);
+        setSelectedElectives(localElectives);
+        setSavedElectives(localElectives);
       } finally {
         setIsLoadingFromDb(false);
       }
@@ -147,35 +174,73 @@ function DashboardInner() {
   useEffect(() => {
     if (!isLoadingFromDb && !hasLoadedToastFired.current) {
       hasLoadedToastFired.current = true;
-      showToast('Grades loaded. Changes save automatically.');
+      showToast('Grades loaded from your student profile.');
     }
   }, [isLoadingFromDb, showToast]);
 
-  // 4. Auto-save to Firestore (debounced 1.5s)
-  useEffect(() => {
-    if (!isMounted || !regNo || isLoadingFromDb || !hasUserEdited.current) return;
-    if (!isValidUniversityAccount) return;
-
-    try {
-      localStorage.setItem(STORAGE_KEY_GRADES, JSON.stringify(userGrades));
-      localStorage.setItem(STORAGE_KEY_ELECTIVES, JSON.stringify(selectedElectives));
-    } catch (_) {}
-
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        await saveGradesViaApi(userGrades, selectedElectives);
-      } catch (err) {
-        console.error('[Dashboard] Auto-save failed:', err);
+  // 4. Calculate unsaved difference count
+  const unsavedCount = useMemo(() => {
+    let count = 0;
+    const allGradeKeys = new Set([...Object.keys(userGrades), ...Object.keys(savedGrades)]);
+    for (const code of allGradeKeys) {
+      if ((userGrades[code] || '') !== (savedGrades[code] || '')) {
+        count++;
       }
-    }, 1500);
+    }
+    const allElectiveKeys = new Set([...Object.keys(selectedElectives), ...Object.keys(savedElectives)]);
+    for (const code of allElectiveKeys) {
+      if (!!selectedElectives[code] !== !!savedElectives[code]) {
+        count++;
+      }
+    }
+    return count;
+  }, [userGrades, savedGrades, selectedElectives, savedElectives]);
 
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  // 5. Prevent accidental tab close with unsaved changes
+  useEffect(() => {
+    if (unsavedCount <= 0) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
     };
-  }, [userGrades, selectedElectives, isMounted, regNo, isLoadingFromDb, isValidUniversityAccount]);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [unsavedCount]);
 
-  // 5. Track mobile summary card visibility for TopBar compact GPA pill
+  // 6. Manual Save Action: Commits current simulation to Firestore
+  const handleSave = async () => {
+    if (!regNo || isSaving || !isValidUniversityAccount) return;
+    setIsSaving(true);
+    try {
+      await saveGradesViaApi(userGrades, selectedElectives);
+
+      // Advance baseline to match current state
+      setSavedGrades({ ...userGrades });
+      setSavedElectives({ ...selectedElectives });
+
+      // Save local backup
+      try {
+        localStorage.setItem(STORAGE_KEY_GRADES, JSON.stringify(userGrades));
+        localStorage.setItem(STORAGE_KEY_ELECTIVES, JSON.stringify(selectedElectives));
+      } catch (_) {}
+
+      showToast('Grades successfully saved to your cloud profile.');
+    } catch (err) {
+      console.error('[Dashboard] Save failed:', err);
+      showToast('Failed to save grades. Please check your network connection.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 7. Manual Discard Action: Reverts current simulation back to saved grades
+  const handleDiscard = () => {
+    setUserGrades({ ...savedGrades });
+    setSelectedElectives({ ...savedElectives });
+    showToast('Unsaved changes discarded.');
+  };
+
+  // 8. Track mobile summary card visibility for TopBar compact GPA pill
   useEffect(() => {
     if (isLoadingFromDb) return;
     const el = document.getElementById('summary-card-mobile');
@@ -209,7 +274,6 @@ function DashboardInner() {
   );
 
   const handleGradeChange = (code: string, grade: string) => {
-    hasUserEdited.current = true;
     setUserGrades((prev) => {
       const next = { ...prev };
       if (grade) next[code] = grade;
@@ -219,7 +283,6 @@ function DashboardInner() {
   };
 
   const handleElectiveToggle = (code: string, isChecked: boolean) => {
-    hasUserEdited.current = true;
     setSelectedElectives((prev) => {
       const next = { ...prev };
       if (isChecked) next[code] = true;
@@ -266,7 +329,7 @@ function DashboardInner() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-200 pb-16">
       {/* 56px Top Bar */}
       <TopBar
         onExport={handleExport}
@@ -276,6 +339,9 @@ function DashboardInner() {
         showCompactGpa={!isSummaryCardVisible}
         compactGpaValue={stats.currentFgpa.toFixed(2)}
         studentName={dbStudentName}
+        unsavedCount={unsavedCount}
+        isSaving={isSaving}
+        onSave={handleSave}
       />
 
       {/* Main Container: Max width 1200px, centered */}
@@ -346,6 +412,14 @@ function DashboardInner() {
 
         </div>
       </div>
+
+      {/* Floating Unsaved Changes Action Dock */}
+      <UnsavedChangesBar
+        unsavedCount={unsavedCount}
+        isSaving={isSaving}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+      />
 
       {/* Transcript Modal & Printable Document */}
       <TranscriptView

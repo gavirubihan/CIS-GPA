@@ -270,17 +270,35 @@ firebase deploy --only firestore:rules
 
 ---
 
-## Database Seeding (Excel to Firestore)
+## Database Seeding & Google Sheets Synchronization
 
-To seed student results from the department's Excel file (`Results Semester I,II-Department_of_CIS.xlsx`):
+### Google Sheets Synchronization (Live Sync)
+To synchronize semester results directly from the live Google Sheet:
 
-1. Ensure `.env.local` contains the `FIREBASE_ADMIN_*` credentials (or place `scripts/serviceAccountKey.json`).
-2. Run the seed command:
-   ```bash
-   npm run seed
-   ```
+```bash
+# Preview changes for Semester 3 without writing to Firestore (Dry Run)
+npm run sync:sem3:dry
 
-The script parses student registration numbers, matches them with curriculum course codes, and writes the initial grades to `/students/{regNo}` in Firestore.
+# Synchronize Semester 3 results to Firestore
+npm run sync:sem3
+
+# Synchronize any specific semester
+npm run sync:sheets -- --semester 3
+```
+
+**Key features:**
+- Downloads directly from the published Google Sheets URL (or accepts a local file).
+- Intelligently merges new semester grades without overwriting or erasing previous semester results (Sem 1 & 2).
+- Automatically normalizes course codes (`IS-EAP-2101` -> `IS-EAP2101`).
+- Validates student registration numbers and valid grade formats (`A+` through `E`).
+- Updates student academic year (`year: 2` for Semester 3).
+- Uses Firestore batch writes for optimal performance and atomic safety.
+
+### Initial Legacy Seeding (Excel to Firestore)
+To seed initial student records from the legacy Excel file (`Results Semester I,II-Department_of_CIS.xlsx`):
+```bash
+npm run seed
+```
 
 ---
 
@@ -291,7 +309,12 @@ The script parses student registration numbers, matches them with curriculum cou
 | `npm run dev` | Starts the Next.js development server at `localhost:3000` |
 | `npm run build` | Compiles an optimized production build |
 | `npm run start` | Runs the compiled production server |
-| `npm run seed` | Seeds Firestore student records from the Excel spreadsheet |
+| `npm run sync:all` | Synchronizes all available semester sheets into Firestore |
+| `npm run sync:all:dry` | Dry-run preview of synchronizing all available semesters |
+| `npm run sync:sem1` .. `sync:sem8` | Synchronizes a specific semester (e.g. `npm run sync:sem3`, `npm run sync:sem4`) |
+| `npm run sync:sem1:dry` .. `sync:sem8:dry` | Dry-run preview for a specific semester without database writes |
+| `npm run sync:sheets` | General Google Sheets sync CLI tool (accepts `--semester`, `--dry-run`, `--url`, `--file`) |
+| `npm run seed` | Seeds Firestore student records from the legacy Excel file |
 
 ---
 

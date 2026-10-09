@@ -7,7 +7,8 @@ import {
   Sun, 
   Moon, 
   LogOut, 
-  GraduationCap
+  CloudUpload,
+  Loader2
 } from 'lucide-react';
 import { ThemeMode } from '../types';
 import { useAuth } from './AuthProvider';
@@ -21,6 +22,9 @@ interface TopBarProps {
   showCompactGpa?: boolean;
   compactGpaValue?: string;
   studentName?: string;
+  unsavedCount?: number;
+  isSaving?: boolean;
+  onSave?: () => void;
 }
 
 export default function TopBar({
@@ -31,6 +35,9 @@ export default function TopBar({
   showCompactGpa = false,
   compactGpaValue = '0.00',
   studentName,
+  unsavedCount = 0,
+  isSaving = false,
+  onSave,
 }: TopBarProps) {
   const { user, regNo, programme } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -97,6 +104,37 @@ export default function TopBar({
           
           {/* Desktop Controls (>=768px) */}
           <div className="hidden sm:flex items-center gap-2">
+            {/* Sync / Save Indicator */}
+            {unsavedCount > 0 ? (
+              <button
+                onClick={onSave}
+                disabled={isSaving}
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-amber-500/15 border border-amber-500/35 text-amber-700 dark:text-amber-400 px-3 text-xs font-semibold hover:bg-amber-500/25 transition-all focus-visible:outline-none disabled:opacity-60 cursor-pointer shadow-2xs animate-in fade-in duration-200"
+                title="Save unsaved changes to cloud database"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                    <span>Saving…</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload className="h-3.5 w-3.5" strokeWidth={2} />
+                    <span>Save Changes ({unsavedCount})</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <div
+                className="hidden lg:flex items-center gap-1.5 px-2 text-[11px] text-secondary font-mono select-none"
+                title="All grades saved to database"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>Synced</span>
+              </div>
+            )}
+
             <button
               onClick={onExport}
               type="button"
@@ -180,6 +218,22 @@ export default function TopBar({
 
                 {/* Mobile-only menu items */}
                 <div className="sm:hidden space-y-1">
+                  {unsavedCount > 0 && (
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onSave?.();
+                      }}
+                      disabled={isSaving}
+                      type="button"
+                      className="flex w-full min-h-[44px] items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-left font-semibold"
+                      role="menuitem"
+                    >
+                      <CloudUpload className="h-4 w-4" strokeWidth={1.5} />
+                      <span>Save changes ({unsavedCount})</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => {
                       setMenuOpen(false);
