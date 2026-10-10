@@ -13,6 +13,8 @@ interface TranscriptViewProps {
   selectedElectives: SelectedElectives;
   stats: OverallStats;
   studentName?: string;
+  seededCourses?: string[];
+  studentModifiedCourses?: string[];
 }
 
 export default function TranscriptView({
@@ -22,6 +24,8 @@ export default function TranscriptView({
   selectedElectives,
   stats,
   studentName,
+  seededCourses,
+  studentModifiedCourses,
 }: TranscriptViewProps) {
   const { user, regNo, programme } = useAuth();
 
@@ -372,7 +376,15 @@ export default function TranscriptView({
                                       {course.credits}
                                     </td>
                                     <td className="py-1 px-2 text-center font-mono text-[11px] tabular-nums font-bold text-slate-900">
-                                      {grade}
+                                      <span className="inline-flex items-center justify-center gap-1">
+                                        <span>{grade}</span>
+                                        {hasGrade && seededCourses?.includes(course.code) && !studentModifiedCourses?.includes(course.code) && (
+                                          <span className="text-[8px] text-emerald-600 font-normal" title="Pre-filled grade from results sheet">●</span>
+                                        )}
+                                        {hasGrade && (studentModifiedCourses?.includes(course.code) || (!seededCourses?.includes(course.code) && (seededCourses && seededCourses.length > 0))) && (
+                                          <span className="text-[8px] text-amber-600 font-normal" title="Student-modified / simulated grade">▲</span>
+                                        )}
+                                      </span>
                                     </td>
                                     <td className="py-1 pl-2 pr-2 text-right font-mono text-[11px] tabular-nums text-slate-700">
                                       {course.gpa ? (

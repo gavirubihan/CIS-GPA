@@ -32,6 +32,7 @@ import {
   isValidRegNo,
   sanitizeGrades,
   sanitizeElectives,
+  computeCourseAudit,
 } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
@@ -83,21 +84,51 @@ export async function POST(req: NextRequest) {
     const safeGrades = sanitizeGrades(grades);
     const safeElectives = sanitizeElectives(selectedElectives ?? {});
 
-    // ── 6. Write ONLY to the student's own document ───────────────────────────
-    // Only update the allowed fields — identity fields (regNo, email, name,
-    // programme, isSeeded) are NOT touched by this route.
+    // ── 6. Write ONLY to the student's own document with course audit ───────────
     const ref = adminDb.collection('students').doc(regNo);
-    await ref.set(
-      {
-        grades: safeGrades,
-        selectedElectives: safeElectives,
-        lastUpdated: FieldValue.serverTimestamp(),
-        isModifiedByStudent: true,
-      },
-      { merge: true } // merge: true keeps existing fields (name, regNo, etc.) intact
-    );
+    const snap = await ref.get();
 
-    return NextResponse.json({ ok: true, regNo });
+    let isSeeded = false;
+    let seededCourses: string[] = [];
+    let seededGrades: Record<string, string> = {};
+
+    if (snap.exists) {
+      const existing = snap.data();
+      isSeeded = Boolean(existing?.isSeeded);
+      seededCourses = Array.isArray(existing?.seededCourses)
+        ? existing.seededCourses
+        : (isSeeded ? Object.keys(existing?.seededGrades || existing?.grades || {}).sort() : []);
+      seededGrades = existing?.seededGrades || (isSeeded && !existing?.isModifiedByStudent ? existing?.grades || {} : {});
+    }
+
+    const audit = computeCourseAudit(safeGrades, seededGrades, seededCourses, isSeeded);
+
+    const updatePayload: Record<string, unknown> = {
+      grades: safeGrades,
+      selectedElectives: safeElectives,
+      lastUpdated: FieldValue.serverTimestamp(),
+      isModifiedByStudent: audit.isModifiedByStudent,
+      studentModifiedCourses: audit.studentModifiedCourses,
+    };
+
+    if (!snap.exists) {
+      updatePayload.regNo = regNo;
+      updatePayload.isSeeded = false;
+      updatePayload.seededCourses = [];
+      updatePayload.seededGrades = {};
+    } else {
+      const existing = snap.data();
+      if (!existing?.seededCourses && isSeeded) {
+        updatePayload.seededCourses = seededCourses;
+      }
+      if (!existing?.seededGrades && isSeeded && Object.keys(seededGrades).length > 0) {
+        updatePayload.seededGrades = seededGrades;
+      }
+    }
+
+    await ref.set(updatePayload, { merge: true });
+
+    return NextResponse.json({ ok: true, regNo, studentModifiedCourses: audit.studentModifiedCourses });
 
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };

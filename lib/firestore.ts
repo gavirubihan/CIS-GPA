@@ -21,6 +21,14 @@ export interface StudentRecord {
   lastUpdated: unknown; // Firestore Timestamp
   isSeeded: boolean;
   isModifiedByStudent: boolean;
+  /** List of course codes pre-populated from the results sheet */
+  seededCourses: string[];
+  /** List of course codes modified, added, or cleared by the student */
+  studentModifiedCourses: string[];
+  /** Backward-compatibility alias */
+  modifiedCourses?: string[];
+  /** Snapshot of grades as originally seeded from the sheet (for diffing & integrity) */
+  seededGrades?: Record<string, string>;
 }
 
 // ── Valid grade values (must match Firestore rules) ───────────────────────────
@@ -62,9 +70,64 @@ function sanitizeElectives(electives: SelectedElectives): Record<string, boolean
   return safe;
 }
 
+/**
+ * Compute the audited list of student-modified courses compared to seeded sheet data.
+ *
+ * Auditing rules:
+ * 1. If unseeded: all entered courses are considered student-modified.
+ * 2. If seeded:
+ *    - Any course whose current grade differs from its seeded grade is student-modified.
+ *    - Any course entered that was not part of the seeded record is student-modified.
+ *    - Any course that was originally seeded but removed/cleared by the student is student-modified.
+ *    - Courses whose grades match the seeded grades remain un-modified.
+ */
+export function computeCourseAudit(
+  currentGrades: Record<string, string>,
+  seededGrades: Record<string, string> = {},
+  seededCourses: string[] = [],
+  isSeeded = false
+): { studentModifiedCourses: string[]; isModifiedByStudent: boolean } {
+  if (!isSeeded && seededCourses.length === 0) {
+    const modified = Object.keys(currentGrades).sort();
+    return {
+      studentModifiedCourses: modified,
+      isModifiedByStudent: modified.length > 0,
+    };
+  }
+
+  const modifiedSet = new Set<string>();
+
+  // 1. Check all courses currently present
+  for (const [code, grade] of Object.entries(currentGrades)) {
+    const originalGrade = seededGrades[code];
+    if (originalGrade === undefined) {
+      if (!seededCourses.includes(code)) {
+        // Brand new course entered by student
+        modifiedSet.add(code);
+      }
+    } else if (originalGrade !== grade) {
+      // Seeded grade was modified by student
+      modifiedSet.add(code);
+    }
+  }
+
+  // 2. Check courses that were seeded but are no longer in currentGrades (cleared)
+  for (const code of seededCourses) {
+    if (!(code in currentGrades)) {
+      modifiedSet.add(code);
+    }
+  }
+
+  const studentModifiedCourses = Array.from(modifiedSet).sort();
+  return {
+    studentModifiedCourses,
+    isModifiedByStudent: studentModifiedCourses.length > 0,
+  };
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/** Fetch a student's Firestore record by registration number. */
+/** Fetch a student's Firestore record by registration number with normalized audit fields. */
 export async function getStudentRecord(regNo: string): Promise<StudentRecord | null> {
   const normalizedReg = regNo?.trim().toUpperCase();
   if (!normalizedReg || !/^\d{2}[A-Z]+\d+$/i.test(normalizedReg)) {
@@ -72,10 +135,33 @@ export async function getStudentRecord(regNo: string): Promise<StudentRecord | n
     return null;
   }
   try {
-    const ref = doc(db, 'students', regNo);
+    const ref = doc(db, 'students', normalizedReg);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
-    return snap.data() as StudentRecord;
+
+    const data = snap.data();
+    const isSeeded = Boolean(data.isSeeded);
+    const isModified = Boolean(data.isModifiedByStudent);
+    const grades = (data.grades as Record<string, string>) || {};
+    const seededCourses = Array.isArray(data.seededCourses)
+      ? data.seededCourses
+      : (isSeeded ? Object.keys(data.seededGrades || grades).sort() : []);
+    const seededGrades = data.seededGrades || (isSeeded && !isModified ? grades : {});
+    const studentModifiedCourses = Array.isArray(data.studentModifiedCourses)
+      ? data.studentModifiedCourses
+      : (Array.isArray(data.modifiedCourses)
+          ? data.modifiedCourses
+          : computeCourseAudit(grades, seededGrades, seededCourses, isSeeded).studentModifiedCourses);
+
+    return {
+      ...data,
+      isSeeded,
+      isModifiedByStudent: studentModifiedCourses.length > 0,
+      seededCourses,
+      studentModifiedCourses,
+      modifiedCourses: studentModifiedCourses,
+      seededGrades,
+    } as StudentRecord;
   } catch (err) {
     console.error('[Firestore] getStudentRecord error:', err);
     return null;
@@ -83,7 +169,7 @@ export async function getStudentRecord(regNo: string): Promise<StudentRecord | n
 }
 
 /**
- * Merge-update only grades and electives (called on every grade change, debounced).
+ * Merge-update grades and electives with precise course-level modification auditing.
  * Grades are sanitized client-side before writing — the Firestore rules also
  * enforce this server-side as a second layer of defence.
  */
@@ -98,18 +184,14 @@ export async function saveGrades(
   }
 
   // ── Client-side ownership guard (defense-in-depth) ──────────────────────────
-  // Verify the regNo we're about to write to matches the currently
-  // authenticated user's email. Firestore rules enforce this server-side too —
-  // this client check prevents accidental bugs from writing to a wrong document.
   const currentUser = auth.currentUser;
   if (!currentUser?.email) {
     throw new Error('Not authenticated — cannot save grades.');
   }
   const derivedRegNo = emailToRegNo(currentUser.email);
-  if (derivedRegNo !== regNo) {
-    // This should never happen in normal operation — log and abort
+  if (derivedRegNo !== normalizedReg) {
     console.error(
-      `[Firestore] Ownership mismatch! Attempted to write to "${regNo}" ` +
+      `[Firestore] Ownership mismatch! Attempted to write to "${normalizedReg}" ` +
       `but authenticated user maps to "${derivedRegNo}". Aborting write.`
     );
     throw new Error('Ownership check failed — write aborted for security.');
@@ -118,33 +200,55 @@ export async function saveGrades(
   const safeGrades = sanitizeGrades(grades);
   const safeElectives = sanitizeElectives(selectedElectives);
 
-  const ref = doc(db, 'students', regNo);
-  try {
-    // Try update first (document already exists — either seeded or previously created)
-    await updateDoc(ref, {
+  const ref = doc(db, 'students', normalizedReg);
+  const snap = await getDoc(ref);
+
+  if (snap.exists()) {
+    const existing = snap.data();
+    const isSeeded = Boolean(existing.isSeeded);
+    const seededCourses: string[] = Array.isArray(existing.seededCourses)
+      ? existing.seededCourses
+      : (isSeeded ? Object.keys(existing.seededGrades || existing.grades || {}).sort() : []);
+    const seededGrades: Record<string, string> =
+      existing.seededGrades || (isSeeded && !existing.isModifiedByStudent ? existing.grades || {} : {});
+
+    const audit = computeCourseAudit(safeGrades, seededGrades, seededCourses, isSeeded);
+
+    const updatePayload: Record<string, unknown> = {
       grades: safeGrades,
       selectedElectives: safeElectives,
       lastUpdated: serverTimestamp(),
-      isModifiedByStudent: true,
-    });
-  } catch (err: unknown) {
-    // Document doesn't exist yet (student not seeded) — create a minimal record
-    if ((err as { code?: string }).code === 'not-found') {
-      await setDoc(
-        ref,
-        {
-          regNo,
-          grades: safeGrades,
-          selectedElectives: safeElectives,
-          lastUpdated: serverTimestamp(),
-          isModifiedByStudent: true,
-          isSeeded: false,
-        },
-        { merge: true }
-      );
-    } else {
-      throw err;
+      isModifiedByStudent: audit.isModifiedByStudent,
+      studentModifiedCourses: audit.studentModifiedCourses,
+    };
+
+    // Auto-backfill legacy documents that lacked seeded metadata
+    if (!existing.seededCourses && isSeeded) {
+      updatePayload.seededCourses = seededCourses;
     }
+    if (!existing.seededGrades && isSeeded && Object.keys(seededGrades).length > 0) {
+      updatePayload.seededGrades = seededGrades;
+    }
+
+    await updateDoc(ref, updatePayload);
+  } else {
+    // Document doesn't exist yet (student not seeded) — create a minimal record
+    const audit = computeCourseAudit(safeGrades, {}, [], false);
+    await setDoc(
+      ref,
+      {
+        regNo: normalizedReg,
+        grades: safeGrades,
+        selectedElectives: safeElectives,
+        lastUpdated: serverTimestamp(),
+        isSeeded: false,
+        seededCourses: [],
+        seededGrades: {},
+        isModifiedByStudent: audit.isModifiedByStudent,
+        studentModifiedCourses: audit.studentModifiedCourses,
+      },
+      { merge: true }
+    );
   }
 }
 

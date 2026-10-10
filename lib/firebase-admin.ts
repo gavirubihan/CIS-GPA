@@ -192,3 +192,50 @@ export function sanitizeElectives(electives: Record<string, boolean>): Record<st
   }
   return safe;
 }
+
+/**
+ * Compute the audited list of student-modified courses compared to seeded sheet data.
+ */
+export function computeCourseAudit(
+  currentGrades: Record<string, string>,
+  seededGrades: Record<string, string> = {},
+  seededCourses: string[] = [],
+  isSeeded = false
+): { studentModifiedCourses: string[]; isModifiedByStudent: boolean } {
+  if (!isSeeded && seededCourses.length === 0) {
+    const modified = Object.keys(currentGrades).sort();
+    return {
+      studentModifiedCourses: modified,
+      isModifiedByStudent: modified.length > 0,
+    };
+  }
+
+  const modifiedSet = new Set<string>();
+
+  // 1. Check all courses currently present
+  for (const [code, grade] of Object.entries(currentGrades)) {
+    const originalGrade = seededGrades[code];
+    if (originalGrade === undefined) {
+      if (!seededCourses.includes(code)) {
+        // Brand new course entered by student
+        modifiedSet.add(code);
+      }
+    } else if (originalGrade !== grade) {
+      // Seeded grade was modified by student
+      modifiedSet.add(code);
+    }
+  }
+
+  // 2. Check courses that were seeded but are no longer in currentGrades (cleared)
+  for (const code of seededCourses) {
+    if (!(code in currentGrades)) {
+      modifiedSet.add(code);
+    }
+  }
+
+  const studentModifiedCourses = Array.from(modifiedSet).sort();
+  return {
+    studentModifiedCourses,
+    isModifiedByStudent: studentModifiedCourses.length > 0,
+  };
+}

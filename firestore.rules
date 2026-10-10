@@ -72,13 +72,27 @@ service cloud.firestore {
 
     // Ensure only allowed top-level fields can be written by students
     function allowedFieldsOnly() {
-      let allowed = ['grades', 'selectedElectives', 'lastUpdated', 'isModifiedByStudent'];
+      let studentMutableFields = [
+        'grades',
+        'selectedElectives',
+        'lastUpdated',
+        'isModifiedByStudent',
+        'studentModifiedCourses'
+      ];
+      let administrativeFields = [
+        'regNo',
+        'nameWithInitials',
+        'fullName',
+        'email',
+        'programme',
+        'year',
+        'isSeeded',
+        'seededCourses',
+        'seededGrades'
+      ];
       let incoming = request.resource.data.keys();
-      // Student writes must only touch these fields (seeded fields like
-      // regNo, email, name, programme are immutable from the client)
-      return incoming.hasOnly(
-        allowed.concat(['regNo', 'nameWithInitials', 'fullName', 'email', 'programme', 'year', 'isSeeded'])
-      );
+      // Student writes must only touch allowed student fields or preserve admin fields
+      return incoming.hasOnly(studentMutableFields.concat(administrativeFields));
     }
 
     // ── /students/{regNo} ────────────────────────────────────
@@ -91,10 +105,13 @@ service cloud.firestore {
       // the grade values are valid, and no forbidden fields are present
       allow create: if isOwner(regNo)
         && gradesAreValid()
-        && allowedFieldsOnly();
+        && allowedFieldsOnly()
+        // Client cannot create seeded batch records without admin SDK
+        && (!('isSeeded' in request.resource.data) || request.resource.data.isSeeded == false)
+        && (!('seededCourses' in request.resource.data) || request.resource.data.seededCourses.size() == 0);
 
       // Update: same checks as create; additionally prevent changing
-      // the regNo, email, or programme fields after seeding
+      // identity or administrative seeded fields
       allow update: if isOwner(regNo)
         && gradesAreValid()
         && allowedFieldsOnly()
@@ -102,7 +119,17 @@ service cloud.firestore {
         && (!('regNo' in request.resource.data)
             || request.resource.data.regNo == resource.data.regNo)
         && (!('email' in request.resource.data)
-            || request.resource.data.email == resource.data.email);
+            || request.resource.data.email == resource.data.email)
+        // Prevent tampering with seeded batch fields once set
+        && (!('isSeeded' in request.resource.data)
+            || !('isSeeded' in resource.data)
+            || request.resource.data.isSeeded == resource.data.isSeeded)
+        && (!('seededCourses' in request.resource.data)
+            || !('seededCourses' in resource.data)
+            || request.resource.data.seededCourses == resource.data.seededCourses)
+        && (!('seededGrades' in request.resource.data)
+            || !('seededGrades' in resource.data)
+            || request.resource.data.seededGrades == resource.data.seededGrades);
 
       // Delete: never allowed from the client
       allow delete: if false;

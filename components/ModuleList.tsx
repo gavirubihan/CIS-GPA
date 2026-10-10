@@ -21,6 +21,8 @@ interface ModuleListProps {
   onGradeChange: (code: string, grade: string) => void;
   onElectiveToggle: (code: string, checked: boolean) => void;
   onSelectYear?: (yearKey: string) => void;
+  seededCourses?: string[];
+  studentModifiedCourses?: string[];
 }
 
 export default function ModuleList({
@@ -31,6 +33,8 @@ export default function ModuleList({
   onGradeChange,
   onElectiveToggle,
   onSelectYear,
+  seededCourses,
+  studentModifiedCourses,
 }: ModuleListProps) {
   // Mobile 'all' view: compact list of 4 years
   if (activeTab === 'all') {
@@ -150,6 +154,22 @@ export default function ModuleList({
                         {!course.gpa && (
                           <span className="text-[10px] text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/25 px-1.5 py-0.2 rounded-full font-medium">
                             Non-GPA
+                          </span>
+                        )}
+                        {currentGrade && seededCourses?.includes(course.code) && !studentModifiedCourses?.includes(course.code) && (
+                          <span
+                            title="Grade pre-filled from results sheet"
+                            className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-1.5 py-0.2 rounded-full font-medium"
+                          >
+                            Seeded
+                          </span>
+                        )}
+                        {currentGrade && (studentModifiedCourses?.includes(course.code) || (!seededCourses?.includes(course.code) && (seededCourses && seededCourses.length > 0))) && (
+                          <span
+                            title="Custom grade modified or entered by student"
+                            className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.2 rounded-full font-medium"
+                          >
+                            Custom
                           </span>
                         )}
                       </div>

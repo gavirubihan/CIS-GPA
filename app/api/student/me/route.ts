@@ -63,7 +63,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ record: null, regNo });
     }
 
-    return NextResponse.json({ record: snap.data(), regNo });
+    const rawData = snap.data();
+    if (!rawData) {
+      return NextResponse.json({ record: null, regNo });
+    }
+
+    const isSeeded = Boolean(rawData.isSeeded);
+    const isModified = Boolean(rawData.isModifiedByStudent);
+    const grades = (rawData.grades as Record<string, string>) || {};
+    const seededCourses = Array.isArray(rawData.seededCourses)
+      ? rawData.seededCourses
+      : (isSeeded ? Object.keys(rawData.seededGrades || grades).sort() : []);
+    const seededGrades = rawData.seededGrades || (isSeeded && !isModified ? grades : {});
+    const studentModifiedCourses = Array.isArray(rawData.studentModifiedCourses)
+      ? rawData.studentModifiedCourses
+      : (Array.isArray(rawData.modifiedCourses)
+          ? rawData.modifiedCourses
+          : (isModified ? Object.keys(grades).filter((c) => !seededCourses.includes(c)).sort() : []));
+
+    const record = {
+      ...rawData,
+      isSeeded,
+      isModifiedByStudent: studentModifiedCourses.length > 0,
+      seededCourses,
+      studentModifiedCourses,
+      modifiedCourses: studentModifiedCourses, // backward-compat alias
+      seededGrades,
+    };
+
+    return NextResponse.json({ record, regNo });
 
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };

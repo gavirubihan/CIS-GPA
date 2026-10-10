@@ -2,7 +2,10 @@
  * Google Sheets Firestore Sync Script
  * =====================================
  * Professional, robust synchronization tool to import semester results
- * from the official Google Sheets results spreadsheet into Firebase Firestore.
+ * from the unofficial Google Sheets results spreadsheet into Firebase Firestore.
+ *
+ * NOTE: There is no official release of results from the university.
+ * The Google Sheet is maintained unofficially and student alterations are authoritative.
  *
  * Supports Semesters 1 through 8 individually or all at once:
  *   - Fetches live directly from Google Sheets or reads a local .xlsx file
@@ -404,6 +407,8 @@ export async function runSync(options: {
     name: string;
     newGrades: Record<string, string>;
     overwrittenGrades: Record<string, { oldVal: string; newVal: string }>;
+    protectedGrades: Record<string, { studentVal: string; sheetVal: string }>;
+    sheetGrades: Record<string, string>;
     finalYear: number;
     isNewDoc: boolean;
   }
@@ -423,6 +428,8 @@ export async function runSync(options: {
           name: student.name,
           newGrades: {},
           overwrittenGrades: {},
+          protectedGrades: {},
+          sheetGrades: {},
           finalYear: existing ? Math.max(existingYear, semTargetYear) : semTargetYear,
           isNewDoc: !existing,
         };
@@ -431,14 +438,43 @@ export async function runSync(options: {
 
       const existing = existingDocs.get(student.regNo);
       const existingGrades: Record<string, string> = existing?.grades || {};
+      const existingModifiedList: string[] = Array.isArray(existing?.studentModifiedCourses)
+        ? existing.studentModifiedCourses
+        : [];
+      const existingModifiedSet = new Set(existingModifiedList);
 
-      for (const [courseCode, grade] of Object.entries(student.grades)) {
+      // Student Sovereignty Helper:
+      // Check if a course was altered/customized by the student
+      const isCourseModifiedByStudent = (code: string): boolean => {
+        if (existingModifiedSet.has(code)) return true;
+        if (existing?.seededGrades && existing.seededGrades[code] !== undefined) {
+          return existingGrades[code] !== undefined && existingGrades[code] !== existing.seededGrades[code];
+        }
+        return false;
+      };
+
+      for (const [courseCode, sheetGrade] of Object.entries(student.grades)) {
+        plan.sheetGrades[courseCode] = sheetGrade;
+
         if (existingGrades[courseCode] === undefined) {
-          plan.newGrades[courseCode] = grade;
-        } else if (existingGrades[courseCode] !== grade) {
+          // Brand new course not present in student's record -> seed it
+          plan.newGrades[courseCode] = sheetGrade;
+        } else if (isCourseModifiedByStudent(courseCode)) {
+          // 🛡️ CRITICAL (Student Sovereignty Rule):
+          // The Google Sheet is maintained unofficially and may contain errors or tentative entries.
+          // If a student has already modified or entered their result for this course,
+          // their result is treated as authoritative. STOP SEEDING THIS COURSE RESULT TO THIS STUDENT.
+          // The student's active result in grades is preserved, while the sheet's grade is only
+          // kept in seededGrades for audit/reference.
+          plan.protectedGrades[courseCode] = {
+            studentVal: existingGrades[courseCode],
+            sheetVal: sheetGrade,
+          };
+        } else if (existingGrades[courseCode] !== sheetGrade) {
+          // Course was NOT modified by student, but spreadsheet has an updated value
           plan.overwrittenGrades[courseCode] = {
             oldVal: existingGrades[courseCode],
-            newVal: grade,
+            newVal: sheetGrade,
           };
         }
       }
@@ -458,6 +494,7 @@ export async function runSync(options: {
       regNo: string;
       newGradesCount: number;
       overwrittenCount: number;
+      protectedCount: number;
       details: string[];
     };
   }
@@ -467,18 +504,38 @@ export async function runSync(options: {
   let studentsCreated = 0;
   let totalGradesAdded = 0;
   let totalGradesOverwritten = 0;
+  let totalGradesProtected = 0;
 
   for (const [regNo, plan] of studentPlans) {
     const existing = existingDocs.get(regNo);
     const existingGrades: Record<string, string> = existing?.grades || {};
+    const existingModifiedList: string[] = Array.isArray(existing?.studentModifiedCourses)
+      ? existing.studentModifiedCourses
+      : [];
 
     const newKeys = Object.keys(plan.newGrades);
     const overwrittenKeys = Object.keys(plan.overwrittenGrades);
+    const protectedKeys = Object.keys(plan.protectedGrades);
 
-    if (newKeys.length === 0 && overwrittenKeys.length === 0 && (!existing || existing.year >= plan.finalYear)) {
+    const existingSeededGrades: Record<string, string> =
+      existing?.seededGrades || (existing?.isSeeded ? existingGrades : {});
+
+    // Check if sheet has any new snapshot data to record
+    const hasNewSeededSnapshotEntries = Object.entries(plan.sheetGrades).some(
+      ([c, g]) => existingSeededGrades[c] !== g
+    );
+
+    if (
+      newKeys.length === 0 &&
+      overwrittenKeys.length === 0 &&
+      !hasNewSeededSnapshotEntries &&
+      (!existing || existing.year >= plan.finalYear)
+    ) {
       continue;
     }
 
+    // Merged grades:
+    // Notice plan.protectedGrades are deliberately EXCLUDED from overwrite — student's existing grade is kept!
     const mergedGrades: Record<string, string> = {
       ...existingGrades,
       ...plan.newGrades,
@@ -488,6 +545,9 @@ export async function runSync(options: {
     };
 
     const diffDetails: string[] = [];
+    for (const [code, { studentVal, sheetVal }] of Object.entries(plan.protectedGrades)) {
+      diffDetails.push(`🛡️ [PROTECTED] ${code}: student "${studentVal}" kept (sheet had "${sheetVal}", stopped seeding because course was modified by student)`);
+    }
     for (const [code, grade] of Object.entries(plan.newGrades)) {
       diffDetails.push(`+ ${code}: ${grade}`);
     }
@@ -499,6 +559,7 @@ export async function runSync(options: {
 
     if (plan.isNewDoc) {
       const email = `${regNo.toLowerCase()}@${UNIVERSITY_DOMAIN}`;
+      const seededCourseList = Object.keys(mergedGrades).sort();
       plannedUpdates.push({
         ref: docRef,
         data: {
@@ -511,29 +572,72 @@ export async function runSync(options: {
           grades: mergedGrades,
           selectedElectives: {},
           lastUpdated: FieldValue.serverTimestamp(),
-          isSeeded: true,
+          isSeeded: seededCourseList.length > 0,
+          seededCourses: seededCourseList,
+          seededGrades: { ...mergedGrades },
           isModifiedByStudent: false,
+          studentModifiedCourses: [],
         },
         diff: {
           regNo,
           newGradesCount: newKeys.length,
           overwrittenCount: overwrittenKeys.length,
+          protectedCount: 0,
           details: ['[NEW STUDENT RECORD]', ...diffDetails],
         },
       });
       studentsCreated++;
     } else {
+      const updatedSeededGrades: Record<string, string> = {
+        ...existingSeededGrades,
+        ...plan.sheetGrades,
+      };
+
+      const updatedSeededCourses = Object.keys(updatedSeededGrades).sort();
+
+      // Recalculate studentModifiedCourses against updated sheet snapshot
+      const modifiedSet = new Set<string>();
+      for (const [code, grade] of Object.entries(mergedGrades)) {
+        const sheetVal = updatedSeededGrades[code];
+        if (sheetVal === undefined || sheetVal !== grade) {
+          modifiedSet.add(code);
+        }
+      }
+      for (const code of updatedSeededCourses) {
+        if (!(code in mergedGrades)) {
+          modifiedSet.add(code);
+        }
+      }
+      // Ensure all protected student-modified courses remain marked
+      for (const code of protectedKeys) {
+        modifiedSet.add(code);
+      }
+      for (const code of existingModifiedList) {
+        if (code in mergedGrades && mergedGrades[code] !== updatedSeededGrades[code]) {
+          modifiedSet.add(code);
+        }
+      }
+
+      const updatedModifiedCourses = Array.from(modifiedSet).sort();
+      const isModified = updatedModifiedCourses.length > 0;
+
       plannedUpdates.push({
         ref: docRef,
         data: {
           grades: mergedGrades,
           year: Math.max(existing.year || 1, plan.finalYear),
           lastUpdated: FieldValue.serverTimestamp(),
+          isSeeded: true,
+          seededCourses: updatedSeededCourses,
+          seededGrades: updatedSeededGrades,
+          isModifiedByStudent: isModified,
+          studentModifiedCourses: updatedModifiedCourses,
         },
         diff: {
           regNo,
           newGradesCount: newKeys.length,
           overwrittenCount: overwrittenKeys.length,
+          protectedCount: protectedKeys.length,
           details: diffDetails,
         },
       });
@@ -542,6 +646,7 @@ export async function runSync(options: {
 
     totalGradesAdded += newKeys.length;
     totalGradesOverwritten += overwrittenKeys.length;
+    totalGradesProtected += protectedKeys.length;
   }
 
   // 7. Display diff preview
@@ -549,7 +654,8 @@ export async function runSync(options: {
   console.log(`  - Students with new or updated grades: ${studentsUpdated}`);
   console.log(`  - Brand new students to create: ${studentsCreated}`);
   console.log(`  - Total new grade entries to insert: ${totalGradesAdded}`);
-  console.log(`  - Total existing grade entries to overwrite: ${totalGradesOverwritten}`);
+  console.log(`  - Total existing grade entries to overwrite (unmodified only): ${totalGradesOverwritten}`);
+  console.log(`  - Total student-modified grades protected (sheet overwrite skipped): ${totalGradesProtected}`);
 
   if (plannedUpdates.length > 0) {
     console.log('\n🔍 Sample Diff Preview (first 5 students):');
@@ -607,7 +713,7 @@ async function main() {
     const arg = args[i];
     if (arg === '--dry-run') {
       dryRun = true;
-    } else if (arg === '--all' || arg === '-a') {
+    } else if (arg === '--all' || arg === '--all-semesters' || arg === '-a') {
       semester = 'all';
     } else if (arg === '--semester' || arg === '-s') {
       const val = args[++i];

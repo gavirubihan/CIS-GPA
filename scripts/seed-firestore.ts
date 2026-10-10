@@ -180,11 +180,20 @@ async function seed() {
     allRows.push(...rows);
   }
 
-  console.log(`\n📤 Uploading ${allRows.length} student records to Firestore…`);
+  console.log('\n🔍 Reading existing student documents from Firestore to protect student modifications…');
+  const existingSnap = await db.collection('students').get();
+  const existingDocs = new Map<string, any>();
+  existingSnap.forEach((doc) => existingDocs.set(doc.id, doc.data()));
+  console.log(`  ✅ Loaded ${existingDocs.size} existing records from Firestore.`);
+
+  console.log(`\n📤 Processing ${allRows.length} student records for Firestore seeding…`);
 
   // Batch write (max 500 per batch)
   const BATCH_SIZE = 400;
   let count = 0;
+  let totalProtectedGrades = 0;
+  let updatedExistingCount = 0;
+  let createdNewCount = 0;
 
   for (let i = 0; i < allRows.length; i += BATCH_SIZE) {
     const batch = db.batch();
@@ -193,20 +202,102 @@ async function seed() {
     for (const student of chunk) {
       const email = `${student.regNo.toLowerCase()}@${UNIVERSITY_DOMAIN}`;
       const ref = db.collection('students').doc(student.regNo);
+      const sheetGrades = { ...student.grades };
+      const seededCourseList = Object.keys(sheetGrades).sort();
+      const existing = existingDocs.get(student.regNo);
 
-      batch.set(ref, {
-        regNo: student.regNo,
-        nameWithInitials: student.nameWithInitials,
-        fullName: student.fullName ?? student.nameWithInitials,
-        email,
-        programme: student.programme,
-        year: 1,
-        grades: student.grades,
-        selectedElectives: {},
-        lastUpdated: FieldValue.serverTimestamp(),
-        isSeeded: true,
-        isModifiedByStudent: false,
-      }, { merge: true });
+      if (!existing) {
+        // Brand-new student record
+        batch.set(ref, {
+          regNo: student.regNo,
+          nameWithInitials: student.nameWithInitials,
+          fullName: student.fullName ?? student.nameWithInitials,
+          email,
+          programme: student.programme,
+          year: 1,
+          grades: sheetGrades,
+          selectedElectives: {},
+          lastUpdated: FieldValue.serverTimestamp(),
+          isSeeded: seededCourseList.length > 0,
+          seededCourses: seededCourseList,
+          seededGrades: sheetGrades,
+          isModifiedByStudent: false,
+          studentModifiedCourses: [],
+        }, { merge: true });
+
+        createdNewCount++;
+      } else {
+        // 🛡️ Existing student: STUDENT SOVEREIGNTY RULE
+        // The Google Sheet/Excel data is maintained unofficially and may contain errors or tentative entries.
+        // If a student has already modified or entered their result for a course, their altered result
+        // is considered authoritative for them. STOP SEEDING THIS COURSE RESULT TO THIS STUDENT.
+        const existingGrades: Record<string, string> = existing.grades || {};
+        const existingModifiedList: string[] = Array.isArray(existing.studentModifiedCourses)
+          ? existing.studentModifiedCourses
+          : [];
+        const existingModifiedSet = new Set(existingModifiedList);
+
+        const isCourseModified = (code: string): boolean => {
+          if (existingModifiedSet.has(code)) return true;
+          if (existing.seededGrades && existing.seededGrades[code] !== undefined) {
+            return existingGrades[code] !== undefined && existingGrades[code] !== existing.seededGrades[code];
+          }
+          return false;
+        };
+
+        const mergedGrades: Record<string, string> = { ...existingGrades };
+        let studentHasProtected = false;
+
+        for (const [code, sheetGrade] of Object.entries(sheetGrades)) {
+          if (isCourseModified(code)) {
+            // STOP SEEDING! Student's modified result is authoritative — keep existing student grade!
+            totalProtectedGrades++;
+            studentHasProtected = true;
+          } else {
+            // Course was not modified by student -> safe to seed from Excel
+            mergedGrades[code] = sheetGrade;
+          }
+        }
+
+        // Recalculate studentModifiedCourses against the seeded sheet baseline
+        const modifiedSet = new Set<string>();
+        for (const [code, grade] of Object.entries(mergedGrades)) {
+          const sheetVal = sheetGrades[code];
+          if (sheetVal === undefined || sheetVal !== grade) {
+            modifiedSet.add(code);
+          }
+        }
+        for (const code of seededCourseList) {
+          if (!(code in mergedGrades)) {
+            modifiedSet.add(code);
+          }
+        }
+        // Ensure previously modified courses remain tagged
+        for (const code of existingModifiedList) {
+          if (code in mergedGrades) {
+            modifiedSet.add(code);
+          }
+        }
+
+        const studentModifiedCourses = Array.from(modifiedSet).sort();
+
+        batch.set(ref, {
+          regNo: student.regNo,
+          nameWithInitials: student.nameWithInitials || existing.nameWithInitials,
+          fullName: student.fullName ?? existing.fullName ?? student.nameWithInitials,
+          email,
+          programme: student.programme,
+          grades: mergedGrades,
+          lastUpdated: FieldValue.serverTimestamp(),
+          isSeeded: seededCourseList.length > 0,
+          seededCourses: seededCourseList,
+          seededGrades: sheetGrades,
+          isModifiedByStudent: studentModifiedCourses.length > 0,
+          studentModifiedCourses,
+        }, { merge: true });
+
+        updatedExistingCount++;
+      }
 
       count++;
     }
@@ -215,8 +306,12 @@ async function seed() {
     console.log(`  ⬆ Uploaded ${Math.min(i + BATCH_SIZE, allRows.length)} / ${allRows.length}`);
   }
 
-  console.log('\n✅ Done! ' + count + ' student records seeded to Firestore.');
-  console.log('🎉 Seeding complete. Students can now log in to the portal.');
+  console.log('\n✅ Seeding complete!');
+  console.log(`  - Total records processed: ${count}`);
+  console.log(`  - Brand new student records created: ${createdNewCount}`);
+  console.log(`  - Existing student records updated: ${updatedExistingCount}`);
+  console.log(`  - 🛡️ Student-modified course grades protected (sheet overwrite stopped): ${totalProtectedGrades}`);
+  console.log('🎉 Seeding finished safely without overwriting student modifications.');
 }
 
 seed().catch((err) => {

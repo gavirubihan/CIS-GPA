@@ -87,6 +87,11 @@ function DashboardInner() {
   const [savedGrades, setSavedGrades] = useState<UserGrades>({});
   const [savedElectives, setSavedElectives] = useState<SelectedElectives>({});
 
+  // Seeded sheet courses & student-modified courses from Firestore
+  const [seededCourses, setSeededCourses] = useState<string[]>([]);
+  const [studentModifiedCourses, setStudentModifiedCourses] = useState<string[]>([]);
+  const [seededGrades, setSeededGrades] = useState<Record<string, string>>({});
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('year1');
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>('dark');
@@ -132,6 +137,14 @@ function DashboardInner() {
           setSavedGrades(recGrades);
           setSelectedElectives(recElectives);
           setSavedElectives(recElectives);
+
+          const sCourses = record.seededCourses || (record.isSeeded ? Object.keys(recGrades).sort() : []);
+          const smCourses = record.studentModifiedCourses || record.modifiedCourses || [];
+          const sGrades = record.seededGrades || (record.isSeeded && !record.isModifiedByStudent ? (recGrades as Record<string, string>) : {});
+
+          setSeededCourses(sCourses);
+          setStudentModifiedCourses(smCourses);
+          setSeededGrades(sGrades);
 
           // If student has Year 2 grades, default active tab to year2
           const hasYear2 = Object.keys(recGrades).some((k) => k.startsWith('IS3') || k.startsWith('IS4'));
@@ -213,6 +226,27 @@ function DashboardInner() {
     setIsSaving(true);
     try {
       await saveGradesViaApi(userGrades, selectedElectives);
+
+      // Recompute modified courses list against seeded baseline
+      const modifiedSet = new Set<string>();
+      for (const [code, grade] of Object.entries(userGrades)) {
+        if (!grade) continue;
+        const seededGrade = seededGrades[code];
+        if (seededGrade === undefined) {
+          if (!seededCourses.includes(code)) {
+            modifiedSet.add(code);
+          }
+        } else if (seededGrade !== grade) {
+          modifiedSet.add(code);
+        }
+      }
+      for (const code of seededCourses) {
+        if (!(code in userGrades) || !userGrades[code]) {
+          modifiedSet.add(code);
+        }
+      }
+      const updatedModified = Array.from(modifiedSet).sort();
+      setStudentModifiedCourses(updatedModified);
 
       // Advance baseline to match current state
       setSavedGrades({ ...userGrades });
@@ -391,6 +425,8 @@ function DashboardInner() {
                     onGradeChange={handleGradeChange}
                     onElectiveToggle={handleElectiveToggle}
                     onSelectYear={(tab) => setActiveTab(tab as ActiveTab)}
+                    seededCourses={seededCourses}
+                    studentModifiedCourses={studentModifiedCourses}
                   />
                 </div>
 
@@ -403,6 +439,8 @@ function DashboardInner() {
                     onGradeChange={handleGradeChange}
                     onElectiveToggle={handleElectiveToggle}
                     onSelectYear={(tab) => setActiveTab(tab as ActiveTab)}
+                    seededCourses={seededCourses}
+                    studentModifiedCourses={studentModifiedCourses}
                   />
                 </div>
               </>
@@ -442,6 +480,8 @@ function DashboardInner() {
         selectedElectives={selectedElectives}
         stats={stats}
         studentName={dbStudentName}
+        seededCourses={seededCourses}
+        studentModifiedCourses={studentModifiedCourses}
       />
     </div>
   );
