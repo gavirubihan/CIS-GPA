@@ -253,7 +253,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - Authentication is handled via **Firebase Auth** using Microsoft OAuth 2.0 (`microsoft.com` provider).
 - **Domain Gate**: The app validates that the user's email ends with `@ms.sab.ac.lk`. Non-student accounts are signed out immediately.
-- **Index Extraction**: The student index number (registration number) is automatically derived from the email prefix (e.g., `22cis0333@ms.sab.ac.lk` $\rightarrow$ `22CIS0333`).
+- **Index Extraction**: The student index number (registration number) is automatically derived from the email prefix (e.g., `22cis0001@ms.sab.ac.lk` $\rightarrow$ `22CIS0001`).
 
 ### Firestore Security Rules
 

@@ -16,7 +16,7 @@ export const UNIVERSITY_DOMAIN = 'ms.sab.ac.lk';
 /**
  * Convert a university email to a registration number.
  * This is the single source of truth for the mapping.
- * e.g.  22cis0333@ms.sab.ac.lk  →  22CIS0333
+ * e.g.  22cis0001@ms.sab.ac.lk  →  22CIS0001
  */
 export function emailToRegNo(email: string): string {
   return email.split('@')[0].toUpperCase();
@@ -40,7 +40,7 @@ export function isUniversityEmail(email: string): boolean {
 
 /**
  * Validate that the registration number looks structurally correct.
- * e.g. "22CIS0333" or "22FIS0296"
+ * e.g. "22CIS0001" or "22FIS0001"
  */
 export function isValidRegNo(regNo: string): boolean {
   return /^\d{2}(CIS|FIS)\d{3,5}$/i.test(regNo);

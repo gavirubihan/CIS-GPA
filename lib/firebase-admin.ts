@@ -146,7 +146,7 @@ export async function verifyIdToken(authHeader: string | null) {
 
 /**
  * Derive the Firestore document ID (regNo) from an email — server-side.
- * e.g. "22cis0333@ms.sab.ac.lk" → "22CIS0333"
+ * e.g. "22cis0001@ms.sab.ac.lk" → "22CIS0001"
  */
 export function serverEmailToRegNo(email: string): string {
   return email.split('@')[0].toUpperCase();
@@ -175,7 +175,7 @@ export function isAuthorizedAdmin(email?: string | null): boolean {
 }
 
 /**
- * Validate the derived regNo has the expected format (e.g. 22CIS0333, 22FIS0296).
+ * Validate the derived regNo has the expected format (e.g. 22CIS0001, 22FIS0001).
  */
 export function isValidRegNo(regNo: string): boolean {
   return /^\d{2}(CIS|FIS)\d{3,5}$/i.test(regNo);

@@ -12,7 +12,7 @@ rules_version = '2';
 //
 //  2. Document ID in /students/{regNo} == uppercase of the
 //     email username prefix.
-//     e.g. "22cis0333@ms.sab.ac.lk" → doc "22CIS0333"
+//     e.g. "22cis0001@ms.sab.ac.lk" → doc "22CIS0001"
 //     This derivation is enforced server-side; no client
 //     code can override it.
 //
@@ -36,7 +36,7 @@ service cloud.firestore {
     // ── Helper functions ──────────────────────────────────────
 
     // Derive the expected document ID from the authenticated email.
-    // "22cis0333@ms.sab.ac.lk" → "22CIS0333"
+    // "22cis0001@ms.sab.ac.lk" → "22CIS0001"
     function derivedRegNo() {
       return request.auth.token.email.split('@')[0].upper();
     }
