@@ -69,6 +69,7 @@ service cloud.firestore {
              'C+', 'C', 'C-', 'D+', 'D', 'E']
            );
     }
+    
 
     // Ensure only allowed top-level fields can be written by students
     function allowedFieldsOnly() {
