@@ -58,9 +58,16 @@ export async function GET(req: NextRequest) {
     }
 
     const isAdmin = isAuthorizedAdmin(email);
+    console.log(`[api/student/me] User: ${email} | isAdmin: ${isAdmin}`);
 
     // ── 4. Fetch only this student's document ─────────────────────────────────
-    const snap = await adminDb.collection('students').doc(regNo).get();
+    let snap;
+    try {
+      snap = await adminDb.collection('students').doc(regNo).get();
+    } catch (dbErr: any) {
+      console.warn('[api/student/me] Could not read student doc from Firestore:', dbErr?.message || dbErr);
+      return NextResponse.json({ record: null, regNo, isAdmin });
+    }
     if (!snap.exists) {
       // Not in DB yet — not an error, student can enter grades manually
       return NextResponse.json({ record: null, regNo, isAdmin });
