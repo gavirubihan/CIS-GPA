@@ -27,6 +27,12 @@ import { getAuth } from 'firebase-admin/auth';
 
 let _adminApp: App | null = null;
 
+let _initError: string | null = null;
+
+export function getAdminInitError(): string | null {
+  return _initError;
+}
+
 export function getAdminApp(): App | null {
   if (_adminApp) return _adminApp;
   if (getApps().length > 0) {
@@ -39,9 +45,8 @@ export function getAdminApp(): App | null {
   let rawKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !rawKey) {
-    console.warn(
-      '[firebase-admin] Missing server environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, or FIREBASE_PRIVATE_KEY).'
-    );
+    _initError = `Missing required env vars: ${[!projectId && 'FIREBASE_PROJECT_ID', !clientEmail && 'FIREBASE_CLIENT_EMAIL', !rawKey && 'FIREBASE_PRIVATE_KEY'].filter(Boolean).join(', ')}`;
+    console.warn('[firebase-admin]', _initError);
     return null;
   }
 
@@ -76,7 +81,9 @@ export function getAdminApp(): App | null {
       projectId,
     });
     return _adminApp;
-  } catch (err) {
+  } catch (err: unknown) {
+    const e = err as { message?: string };
+    _initError = e?.message || String(err);
     console.error('[firebase-admin] Failed to initialize App with provided credentials:', err);
     return null;
   }
