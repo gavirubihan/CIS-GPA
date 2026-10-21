@@ -28,6 +28,7 @@ import {
   serverEmailToRegNo,
   isUniversityEmail,
   isValidRegNo,
+  isAuthorizedAdmin,
 } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
@@ -56,16 +57,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const isAdmin = isAuthorizedAdmin(email);
+
     // ── 4. Fetch only this student's document ─────────────────────────────────
     const snap = await adminDb.collection('students').doc(regNo).get();
     if (!snap.exists) {
       // Not in DB yet — not an error, student can enter grades manually
-      return NextResponse.json({ record: null, regNo });
+      return NextResponse.json({ record: null, regNo, isAdmin });
     }
 
     const rawData = snap.data();
     if (!rawData) {
-      return NextResponse.json({ record: null, regNo });
+      return NextResponse.json({ record: null, regNo, isAdmin });
     }
 
     const isSeeded = Boolean(rawData.isSeeded);
@@ -91,12 +94,12 @@ export async function GET(req: NextRequest) {
       seededGrades,
     };
 
-    return NextResponse.json({ record, regNo });
+    return NextResponse.json({ record, regNo, isAdmin });
 
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
     const message = e.message ?? 'Server error';
     console.warn('[API /student/me GET]', message);
-    return NextResponse.json({ record: null, error: message, fallbackAvailable: true }, { status: 200 });
+    return NextResponse.json({ record: null, isAdmin: false, error: message, fallbackAvailable: true }, { status: 200 });
   }
 }

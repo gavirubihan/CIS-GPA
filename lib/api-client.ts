@@ -101,3 +101,27 @@ export async function saveGradesViaApi(
     throw err;
   }
 }
+
+/**
+ * Trigger Google Sheets to Firestore database synchronization (Admin only).
+ */
+export async function triggerDatabaseSync(options: {
+  semester: number | 'all';
+  dryRun: boolean;
+  sheetUrl?: string;
+}): Promise<import('../types').SyncResult> {
+  const headers = await authHeaders();
+  const res = await fetch('/api/admin/sync', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(options),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.success === false) {
+    throw new Error(data.error || `Sync failed with HTTP ${res.status}`);
+  }
+
+  return data;
+}
+

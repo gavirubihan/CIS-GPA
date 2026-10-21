@@ -8,7 +8,8 @@ import {
 import { auth } from './firebase';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const UNIVERSITY_DOMAIN = 'ms.sab.ac.lk';
+export const UNIVERSITY_DOMAIN = 'ms.sab.ac.lk';
+
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 

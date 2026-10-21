@@ -8,7 +8,8 @@ import {
   Moon, 
   LogOut, 
   CloudUpload,
-  Loader2
+  Loader2,
+  Database
 } from 'lucide-react';
 import { ThemeMode } from '../types';
 import { useAuth } from './AuthProvider';
@@ -17,6 +18,7 @@ import { signOut } from '../lib/auth';
 interface TopBarProps {
   onExport: () => void;
   onOpenTranscript: () => void;
+  onOpenAdminSync?: () => void;
   theme: ThemeMode;
   onToggleTheme: () => void;
   showCompactGpa?: boolean;
@@ -30,6 +32,7 @@ interface TopBarProps {
 export default function TopBar({
   onExport,
   onOpenTranscript,
+  onOpenAdminSync,
   theme,
   onToggleTheme,
   showCompactGpa = false,
@@ -39,7 +42,7 @@ export default function TopBar({
   isSaving = false,
   onSave,
 }: TopBarProps) {
-  const { user, regNo, programme } = useAuth();
+  const { user, regNo, programme, isAdmin } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -135,6 +138,18 @@ export default function TopBar({
               </div>
             )}
 
+            {isAdmin && onOpenAdminSync && (
+              <button
+                onClick={onOpenAdminSync}
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 px-3 text-xs font-semibold transition-all focus-visible:outline-none cursor-pointer shadow-2xs"
+                title="Open Google Sheets Database Synchronizer"
+              >
+                <Database className="h-3.5 w-3.5" strokeWidth={2} />
+                <span>Sync DB</span>
+              </button>
+            )}
+
             <button
               onClick={onExport}
               type="button"
@@ -212,7 +227,32 @@ export default function TopBar({
                   <p className="text-secondary mt-1 text-[11px]">
                     {progLabel}
                   </p>
+                  {isAdmin && (
+                    <div className="mt-2 flex items-center">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Administrator
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {isAdmin && onOpenAdminSync && (
+                  <div className="px-1 py-1">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenAdminSync();
+                      }}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors text-left font-semibold cursor-pointer"
+                      role="menuitem"
+                    >
+                      <Database className="h-4 w-4" strokeWidth={2} />
+                      <span>Database Sync Tool</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="my-1 border-t border-border-hairline" />
 
@@ -231,6 +271,21 @@ export default function TopBar({
                     >
                       <CloudUpload className="h-4 w-4" strokeWidth={1.5} />
                       <span>Save changes ({unsavedCount})</span>
+                    </button>
+                  )}
+
+                  {isAdmin && onOpenAdminSync && (
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenAdminSync();
+                      }}
+                      type="button"
+                      className="flex w-full min-h-[44px] items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors text-left font-semibold"
+                      role="menuitem"
+                    >
+                      <Database className="h-4 w-4" strokeWidth={1.5} />
+                      <span>Database Sync (Admin)</span>
                     </button>
                   )}
 

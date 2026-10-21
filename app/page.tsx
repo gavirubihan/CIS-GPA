@@ -8,6 +8,7 @@ import ModuleTable from '../components/ModuleTable';
 import ModuleList from '../components/ModuleList';
 import TargetPlanner from '../components/TargetPlanner';
 import TranscriptView from '../components/TranscriptView';
+import AdminSyncModal from '../components/AdminSyncModal';
 import LoginPage from '../components/LoginPage';
 import UnsavedChangesBar from '../components/UnsavedChangesBar';
 import { ToastProvider, useToast } from '../components/Toast';
@@ -94,12 +95,19 @@ function DashboardInner() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('year1');
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [isAdminSyncOpen, setIsAdminSyncOpen] = useState(false);
+  const [reloadCounter, setReloadCounter] = useState(0);
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const [isMounted, setIsMounted] = useState(false);
   const [dbStudentName, setDbStudentName] = useState<string | undefined>(undefined);
   const [isLoadingFromDb, setIsLoadingFromDb] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSummaryCardVisible, setIsSummaryCardVisible] = useState(true);
+
+  const handleSyncSuccess = () => {
+    setReloadCounter((c) => c + 1);
+    showToast('Database synchronized! Fresh grades reloaded.');
+  };
 
   const hasLoadedToastFired = useRef(false);
 
@@ -181,7 +189,7 @@ function DashboardInner() {
     }
 
     loadData();
-  }, [user]);
+  }, [user, reloadCounter]);
 
   // 3. First load dismissible toast notification
   useEffect(() => {
@@ -369,6 +377,7 @@ function DashboardInner() {
         <TopBar
           onExport={handleExport}
           onOpenTranscript={() => setIsTranscriptOpen(true)}
+          onOpenAdminSync={() => setIsAdminSyncOpen(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
           showCompactGpa={!isSummaryCardVisible}
@@ -482,6 +491,13 @@ function DashboardInner() {
         studentName={dbStudentName}
         seededCourses={seededCourses}
         studentModifiedCourses={studentModifiedCourses}
+      />
+
+      {/* Admin Google Sheets Sync Modal */}
+      <AdminSyncModal
+        isOpen={isAdminSyncOpen}
+        onClose={() => setIsAdminSyncOpen(false)}
+        onSyncSuccess={handleSyncSuccess}
       />
     </div>
   );

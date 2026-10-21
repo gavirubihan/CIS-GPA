@@ -160,6 +160,21 @@ export function isUniversityEmail(email: string): boolean {
 }
 
 /**
+ * List of administrative student email accounts authorized to trigger database syncs.
+ * Sourced strictly from the server-only ADMIN_EMAILS environment variable.
+ */
+export const ADMIN_EMAILS: string[] = (process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+/** Check if an email belongs to an authorized administrator */
+export function isAuthorizedAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
+/**
  * Validate the derived regNo has the expected format (e.g. 22CIS0333, 22FIS0296).
  */
 export function isValidRegNo(regNo: string): boolean {

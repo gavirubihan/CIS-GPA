@@ -272,8 +272,17 @@ firebase deploy --only firestore:rules
 
 ## Database Seeding & Google Sheets Synchronization
 
-### Google Sheets Synchronization (Live Sync)
-To synchronize semester results directly from the live Google Sheet:
+### 🌟 Web UI Database Synchronizer (Admin Only)
+Authorized admin accounts (configured via the server-only `ADMIN_EMAILS` variable in `.env.local`) can trigger and monitor database synchronization directly from the web interface without terminal access:
+- **Location**: Click the **"Sync DB"** button in the TopBar or access **"Database Sync Tool"** in the user profile menu.
+- **Dry-Run Preview**: Preview newly added, modified, and protected grades before committing any changes.
+- **Semester Targeting**: Sync all published sheets (`All Semesters I–VIII`) or choose an individual semester.
+- **Sovereignty Protection**: Automatically detects and protects student-customized grades from being overwritten by tentative sheet entries.
+- **Serverless & In-Memory**: Completely executes in memory via Next.js API route (`POST /api/admin/sync`) with zero disk dependency.
+
+### Google Sheets Synchronization (CLI)
+You can also synchronize semester results directly via the terminal:
+
 
 ```bash
 # Preview changes for Semester 3 without writing to Firestore (Dry Run)
