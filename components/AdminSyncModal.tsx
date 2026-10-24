@@ -239,14 +239,13 @@ export default function AdminSyncModal({
                       key={b.id}
                       type="button"
                       onClick={() => handleSelectBatch(b.id)}
-                      className={`py-2 px-3 text-xs font-medium rounded-xl border text-left transition-all cursor-pointer ${
+                      className={`py-2.5 px-3 text-xs font-medium rounded-xl border transition-all cursor-pointer ${
                         selectedBatchId === b.id
                           ? 'border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold shadow-2xs'
                           : 'border-border bg-surface text-secondary hover:text-foreground hover:bg-raised'
                       }`}
                     >
                       <div className="font-semibold">{b.label}</div>
-                      <div className="text-[10px] text-muted font-mono mt-0.5">Prefix {b.prefix}•••</div>
                     </button>
                   ))
                 ) : (
