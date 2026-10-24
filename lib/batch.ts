@@ -43,9 +43,18 @@ export const SUPPORTED_BATCHES: Record<string, { label: string; prefix: string }
  * e.g. "23FIS0045" -> { batchId: "23_24", batchLabel: "2023/2024 Batch", prefix: "23", programme: "FIS" }
  * e.g. "22CIS0333" -> { batchId: "22_23", batchLabel: "2022/2023 Batch", prefix: "22", programme: "CIS" }
  */
-export function getBatchFromRegNo(regNo: string): BatchInfo {
-  const upper = regNo.trim().toUpperCase();
-  const match = upper.match(/^(\d{2})(CIS|FIS)\d{3,5}$/);
+export function getBatchFromRegNo(regNo?: string | null): BatchInfo {
+  if (!regNo || typeof regNo !== 'string') {
+    return {
+      batchId: 'unknown',
+      batchLabel: 'Unknown Batch',
+      prefix: '',
+      programme: 'unknown',
+    };
+  }
+
+  const clean = regNo.trim().toUpperCase().replace(/[-/\s]/g, '');
+  const match = clean.match(/^(\d{2})(CIS|FIS)\d{2,6}$/);
 
   if (!match) {
     return {

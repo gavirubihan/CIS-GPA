@@ -72,6 +72,11 @@ export default function AdminSyncModal({
         const currentBatch = data.batches.find((b) => b.id === initialBatchId);
         if (currentBatch?.googleSheetUrl) {
           setSheetUrl(currentBatch.googleSheetUrl);
+        } else {
+          setSheetUrl(initialBatchId === '22_23' ? DEFAULT_SPREADSHEET_URL : '');
+          if (initialBatchId !== '22_23') {
+            setShowConfig(true);
+          }
         }
       })
       .catch((err) => {
@@ -97,7 +102,10 @@ export default function AdminSyncModal({
     if (b?.googleSheetUrl) {
       setSheetUrl(b.googleSheetUrl);
     } else {
-      setSheetUrl(DEFAULT_SPREADSHEET_URL);
+      setSheetUrl(batchId === '22_23' ? DEFAULT_SPREADSHEET_URL : '');
+      if (batchId !== '22_23') {
+        setShowConfig(true);
+      }
     }
   };
 
@@ -128,6 +136,12 @@ export default function AdminSyncModal({
   if (!isOpen) return null;
 
   const handleStartSync = async (forceLive?: boolean) => {
+    if (!sheetUrl.trim() && selectedBatchId !== '22_23') {
+      setError(`Please configure and save the Google Sheet URL for ${currentBatchMeta?.label || selectedBatchId} before running sync.`);
+      setShowConfig(true);
+      return;
+    }
+
     const dryRunMode = forceLive ? false : isDryRun;
     setIsRunning(true);
     setError(null);

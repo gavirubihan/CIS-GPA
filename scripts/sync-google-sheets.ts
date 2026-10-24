@@ -230,7 +230,8 @@ export interface SheetParseResult {
 function parseSemesterSheet(
   workbook: xlsx.WorkBook,
   resolvedSheetName: string,
-  semesterNumber: number
+  semesterNumber: number,
+  batchPrefix?: string
 ): SheetParseResult {
   const ws = workbook.Sheets[resolvedSheetName];
   if (!ws) {
@@ -277,6 +278,11 @@ function parseSemesterSheet(
     const rawRegNo = String(row[0]).trim().toUpperCase();
     if (!isValidRegNo(rawRegNo)) continue;
 
+    // Filter to only targeted batch prefix if specified (e.g. "23" or "22")
+    if (batchPrefix && !rawRegNo.startsWith(batchPrefix)) {
+      continue;
+    }
+
     const name = String(row[1] || '').trim();
     const grades: Record<string, string> = {};
     const absentCourses: string[] = [];
@@ -318,17 +324,20 @@ function parseSemesterSheet(
 
 // ── Main Synchronization Runner ─────────────────────────────────────────────
 export async function runSync(options: {
+  batchId?: string;
   semester: number | string;
   sheetUrl?: string;
   filePath?: string;
   dryRun?: boolean;
 }) {
   const { semester, dryRun = false } = options;
+  const batchId = options.batchId || '22_23';
+  const batchPrefix = batchId.split('_')[0] || '22';
   const sheetUrl = options.sheetUrl || DEFAULT_SPREADSHEET_URL;
 
   console.log('\n=============================================================');
   console.log(` 🚀 CIS GPA CALCULATOR - FIRESTORE SYNC BOT`);
-  console.log(`    Target: ${semester === 'all' ? 'All Semesters' : `Semester ${semester}`} | Mode: ${dryRun ? '🔍 DRY RUN (NO WRITES)' : '⚡ LIVE SYNC'}`);
+  console.log(`    Batch: ${batchId} (Prefix: ${batchPrefix}) | Target: ${semester === 'all' ? 'All Semesters' : `Semester ${semester}`} | Mode: ${dryRun ? '🔍 DRY RUN (NO WRITES)' : '⚡ LIVE SYNC'}`);
   console.log('=============================================================\n');
 
   // 1. Download or locate workbook
@@ -372,7 +381,7 @@ export async function runSync(options: {
   const parsedResults: SheetParseResult[] = [];
   for (const item of semestersToSync) {
     console.log(`\n📄 Parsing "${item.sheetName}" (Semester ${item.semNum})…`);
-    const res = parseSemesterSheet(workbook, item.sheetName, item.semNum);
+    const res = parseSemesterSheet(workbook, item.sheetName, item.semNum, batchPrefix);
     parsedResults.push(res);
 
     console.log(`  ✅ Found ${res.students.length} students, ${res.totalValidGrades} valid grade entries.`);
@@ -409,20 +418,16 @@ export async function runSync(options: {
     overwrittenGrades: Record<string, { oldVal: string; newVal: string }>;
     protectedGrades: Record<string, { studentVal: string; sheetVal: string }>;
     sheetGrades: Record<string, string>;
-    finalYear: number;
     isNewDoc: boolean;
   }
 
   const studentPlans = new Map<string, AggregatedStudentPlan>();
 
   for (const sheetRes of parsedResults) {
-    const semTargetYear = Math.ceil(sheetRes.semesterNumber / 2);
-
     for (const student of sheetRes.students) {
       let plan = studentPlans.get(student.regNo);
       if (!plan) {
         const existing = existingDocs.get(student.regNo);
-        const existingYear = existing?.year || 1;
         plan = {
           regNo: student.regNo,
           name: student.name,
@@ -430,7 +435,6 @@ export async function runSync(options: {
           overwrittenGrades: {},
           protectedGrades: {},
           sheetGrades: {},
-          finalYear: existing ? Math.max(existingYear, semTargetYear) : semTargetYear,
           isNewDoc: !existing,
         };
         studentPlans.set(student.regNo, plan);
@@ -478,11 +482,6 @@ export async function runSync(options: {
           };
         }
       }
-
-      // If sheet has valid grades for this semester, ensure student's year is at least this semester's year
-      if (sheetRes.totalValidGrades > 0) {
-        plan.finalYear = Math.max(plan.finalYear, semTargetYear);
-      }
     }
   }
 
@@ -528,8 +527,7 @@ export async function runSync(options: {
     if (
       newKeys.length === 0 &&
       overwrittenKeys.length === 0 &&
-      !hasNewSeededSnapshotEntries &&
-      (!existing || existing.year >= plan.finalYear)
+      !hasNewSeededSnapshotEntries
     ) {
       continue;
     }
@@ -564,11 +562,11 @@ export async function runSync(options: {
         ref: docRef,
         data: {
           regNo,
+          batchId,
           nameWithInitials: plan.name,
           fullName: plan.name,
           email,
           programme: getProgramme(regNo),
-          year: plan.finalYear,
           grades: mergedGrades,
           selectedElectives: {},
           lastUpdated: FieldValue.serverTimestamp(),
@@ -625,7 +623,6 @@ export async function runSync(options: {
         ref: docRef,
         data: {
           grades: mergedGrades,
-          year: Math.max(existing.year || 1, plan.finalYear),
           lastUpdated: FieldValue.serverTimestamp(),
           isSeeded: true,
           seededCourses: updatedSeededCourses,
@@ -704,6 +701,7 @@ export async function runSync(options: {
 // ── CLI Execution ────────────────────────────────────────────────────────────
 async function main() {
   const args = process.argv.slice(2);
+  let batchId = '22_23';
   let semester: number | string = 3;
   let dryRun = false;
   let sheetUrl: string | undefined = undefined;
@@ -715,6 +713,8 @@ async function main() {
       dryRun = true;
     } else if (arg === '--all' || arg === '--all-semesters' || arg === '-a') {
       semester = 'all';
+    } else if (arg === '--batch' || arg === '-b') {
+      batchId = args[++i];
     } else if (arg === '--semester' || arg === '-s') {
       const val = args[++i];
       semester = val === 'all' ? 'all' : parseInt(val, 10) || val;
@@ -725,7 +725,7 @@ async function main() {
     }
   }
 
-  await runSync({ semester, dryRun, sheetUrl, filePath });
+  await runSync({ batchId, semester, dryRun, sheetUrl, filePath });
 }
 
 // Only run automatically if invoked as a CLI script

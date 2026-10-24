@@ -260,7 +260,7 @@ export async function getBatchConfig(batchId: string): Promise<any> {
     googleSheetUrl:
       batchId === '22_23'
         ? 'https://docs.google.com/spreadsheets/d/1Xq3tsyEkLwBTO7EsFruHdlbXBwETdCOQGSdlZrWzZdo/edit?usp=sharing'
-        : 'https://docs.google.com/spreadsheets/d/1Xq3tsyEkLwBTO7EsFruHdlbXBwETdCOQGSdlZrWzZdo/edit?usp=sharing',
+        : '',
     adminEmails: [],
     programmes: ['CIS', 'FIS'],
     createdAt: new Date().toISOString(),

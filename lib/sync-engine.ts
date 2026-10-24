@@ -239,7 +239,14 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
   const { semester, dryRun = false } = options;
   const batchId = options.batchId || '22_23';
   const batchConfig = await getBatchConfig(batchId);
-  const sheetUrl = options.sheetUrl || batchConfig.googleSheetUrl || DEFAULT_SPREADSHEET_URL;
+  const rawSheetUrl = options.sheetUrl || batchConfig.googleSheetUrl;
+  const sheetUrl = rawSheetUrl ? rawSheetUrl.trim() : (batchId === '22_23' ? DEFAULT_SPREADSHEET_URL : '');
+
+  if (!sheetUrl) {
+    throw new Error(
+      `No Google Sheet URL configured for ${batchConfig.label || batchId}. Please configure and save the Google Sheet URL first in the sync settings.`
+    );
+  }
 
   // 1. Acquire Workbook Buffer
   let buffer: Buffer;
