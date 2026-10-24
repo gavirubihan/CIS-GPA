@@ -154,10 +154,19 @@ function DashboardInner() {
           setStudentModifiedCourses(smCourses);
           setSeededGrades(sGrades);
 
-          // If student has Year 2 grades, default active tab to year2
-          const hasYear2 = Object.keys(recGrades).some((k) => k.startsWith('IS3') || k.startsWith('IS4'));
-          if (hasYear2) {
+          // Determine default active tab dynamically based on highest graded courses
+          const gradeKeys = Object.keys(recGrades);
+          const hasYear4 = gradeKeys.some((k) => k.startsWith('IS7') || k.startsWith('IS8'));
+          const hasYear3 = gradeKeys.some((k) => k.startsWith('IS5') || k.startsWith('IS6'));
+          const hasYear2 = gradeKeys.some((k) => k.startsWith('IS3') || k.startsWith('IS4'));
+          if (hasYear4) {
+            setActiveTab('year4');
+          } else if (hasYear3) {
+            setActiveTab('year3');
+          } else if (hasYear2) {
             setActiveTab('year2');
+          } else {
+            setActiveTab('year1');
           }
 
           setDbStudentName(record.nameWithInitials || record.fullName);

@@ -112,7 +112,9 @@ export async function POST(req: NextRequest) {
     };
 
     if (!snap.exists) {
+      const { getBatchFromRegNo } = await import('@/lib/batch');
       updatePayload.regNo = regNo;
+      updatePayload.batchId = getBatchFromRegNo(regNo).batchId;
       updatePayload.isSeeded = false;
       updatePayload.seededCourses = [];
       updatePayload.seededGrades = {};

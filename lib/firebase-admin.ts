@@ -176,11 +176,96 @@ export function getAdminEmails(): string[] {
 
 export const ADMIN_EMAILS: string[] = getAdminEmails();
 
-/** Check if an email belongs to an authorized administrator */
+/** Check if an email belongs to a super administrator */
 export function isAuthorizedAdmin(email?: string | null): boolean {
   if (!email) return false;
   const adminEmails = getAdminEmails();
   return adminEmails.includes(email.trim().toLowerCase());
+}
+
+export interface AdminScope {
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  allowedBatches: string[];
+}
+
+/**
+ * Determine full administrative scope for a given email address.
+ * Evaluates Super Admin rights (ADMIN_EMAILS) and batch-scoped rights (batches collection).
+ */
+export async function getAdminScope(email?: string | null): Promise<AdminScope> {
+  if (!email) {
+    return { isAdmin: false, isSuperAdmin: false, allowedBatches: [] };
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Super Admin: Full authority across all cohorts
+  if (isAuthorizedAdmin(cleanEmail)) {
+    return { isAdmin: true, isSuperAdmin: true, allowedBatches: ['*'] };
+  }
+
+  // 2. Batch-Specific Admin: Check Firestore batches collection
+  try {
+    const db = getAdminDb();
+    if (!db) {
+      return { isAdmin: false, isSuperAdmin: false, allowedBatches: [] };
+    }
+
+    const snap = await db.collection('batches').get();
+    const allowed: string[] = [];
+
+    snap.forEach((doc) => {
+      const data = doc.data();
+      const adminList: string[] = Array.isArray(data.adminEmails)
+        ? data.adminEmails.map((e: string) => String(e).trim().toLowerCase())
+        : [];
+      if (adminList.includes(cleanEmail)) {
+        allowed.push(doc.id);
+      }
+    });
+
+    if (allowed.length > 0) {
+      return { isAdmin: true, isSuperAdmin: false, allowedBatches: allowed };
+    }
+  } catch (err) {
+    console.warn('[firebase-admin] Could not inspect batch admin access:', err);
+  }
+
+  return { isAdmin: false, isSuperAdmin: false, allowedBatches: [] };
+}
+
+/**
+ * Retrieve batch configuration from Firestore, with fallback to default settings.
+ */
+export async function getBatchConfig(batchId: string): Promise<any> {
+  const db = getAdminDb();
+  if (db) {
+    try {
+      const snap = await db.collection('batches').doc(batchId).get();
+      if (snap.exists) {
+        return { id: batchId, ...snap.data() };
+      }
+    } catch (err) {
+      console.warn(`[firebase-admin] Error reading batch ${batchId} from Firestore:`, err);
+    }
+  }
+
+  // Fallback default configurations
+  const prefix = batchId.split('_')[0] || '22';
+  return {
+    id: batchId,
+    label: `20${prefix}/20${Number(prefix) + 1} Batch`,
+    prefix,
+    googleSheetUrl:
+      batchId === '22_23'
+        ? 'https://docs.google.com/spreadsheets/d/1Xq3tsyEkLwBTO7EsFruHdlbXBwETdCOQGSdlZrWzZdo/edit?usp=sharing'
+        : 'https://docs.google.com/spreadsheets/d/1Xq3tsyEkLwBTO7EsFruHdlbXBwETdCOQGSdlZrWzZdo/edit?usp=sharing',
+    adminEmails: [],
+    programmes: ['CIS', 'FIS'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /**

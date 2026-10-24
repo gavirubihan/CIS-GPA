@@ -208,13 +208,15 @@ async function seed() {
 
       if (!existing) {
         // Brand-new student record
+        const prefix = student.regNo.slice(0, 2);
+        const batchId = `${prefix}_${Number(prefix) + 1}`;
         batch.set(ref, {
           regNo: student.regNo,
+          batchId,
           nameWithInitials: student.nameWithInitials,
           fullName: student.fullName ?? student.nameWithInitials,
           email,
           programme: student.programme,
-          year: 1,
           grades: sheetGrades,
           selectedElectives: {},
           lastUpdated: FieldValue.serverTimestamp(),

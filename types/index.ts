@@ -86,6 +86,7 @@ export interface SyncDiffPreview {
 export interface SyncResult {
   success: boolean;
   dryRun: boolean;
+  batchId?: string;
   targetSemester: string | number;
   sheetsFound: string[];
   totalStudentsParsed: number;

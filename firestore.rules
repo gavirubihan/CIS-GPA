@@ -82,6 +82,7 @@ service cloud.firestore {
       ];
       let administrativeFields = [
         'regNo',
+        'batchId',
         'nameWithInitials',
         'fullName',
         'email',
@@ -134,6 +135,13 @@ service cloud.firestore {
 
       // Delete: never allowed from the client
       allow delete: if false;
+    }
+
+    // ── /batches/{batchId} ───────────────────────────────────
+    // Batch configuration & metadata (read-only from client, writes via Admin SDK)
+    match /batches/{batchId} {
+      allow read: if request.auth != null && isUniversityAccount();
+      allow write: if false;
     }
 
     // ── /meta/{doc} ──────────────────────────────────────────

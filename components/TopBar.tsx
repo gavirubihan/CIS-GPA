@@ -42,7 +42,7 @@ export default function TopBar({
   isSaving = false,
   onSave,
 }: TopBarProps) {
-  const { user, regNo, programme, isAdmin } = useAuth();
+  const { user, regNo, programme, isAdmin, batchLabel } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +89,7 @@ export default function TopBar({
               GPA Calculator
             </span>
             <span className="hidden sm:inline text-xs text-secondary truncate">
-              BSc (Hons) CIS / IS
+              BSc (Hons) CIS / IS {batchLabel ? `• ${batchLabel}` : ''}
             </span>
           </div>
 
@@ -225,7 +225,7 @@ export default function TopBar({
                     </p>
                   )}
                   <p className="text-secondary mt-1 text-[11px]">
-                    {progLabel}
+                    {progLabel} {batchLabel ? `(${batchLabel})` : ''}
                   </p>
                   {isAdmin && (
                     <div className="mt-2 flex items-center">

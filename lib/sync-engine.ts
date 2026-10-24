@@ -16,8 +16,9 @@
 
 import { FieldValue, WriteBatch } from 'firebase-admin/firestore';
 import * as xlsx from 'xlsx';
-import { getAdminDb, UNIVERSITY_DOMAIN, VALID_GRADES } from './firebase-admin';
+import { getAdminDb, getBatchConfig, UNIVERSITY_DOMAIN, VALID_GRADES } from './firebase-admin';
 import { SyncResult, SyncDiffPreview } from '../types';
+import { getBatchFromRegNo } from './batch';
 
 export const DEFAULT_SPREADSHEET_URL =
   'https://docs.google.com/spreadsheets/d/1Xq3tsyEkLwBTO7EsFruHdlbXBwETdCOQGSdlZrWzZdo/edit?usp=sharing';
@@ -141,7 +142,8 @@ interface SheetParseResult {
 function parseSemesterSheet(
   workbook: xlsx.WorkBook,
   resolvedSheetName: string,
-  semesterNumber: number
+  semesterNumber: number,
+  batchPrefix?: string
 ): SheetParseResult {
   const ws = workbook.Sheets[resolvedSheetName];
   if (!ws) {
@@ -182,6 +184,11 @@ function parseSemesterSheet(
     const rawRegNo = String(row[0]).trim().toUpperCase();
     if (!isValidRegNo(rawRegNo)) continue;
 
+    // Filter to only targeted batch prefix if specified (e.g. "23" or "22")
+    if (batchPrefix && !rawRegNo.startsWith(batchPrefix)) {
+      continue;
+    }
+
     const name = String(row[1] || '').trim();
     const grades: Record<string, string> = {};
     const absentCourses: string[] = [];
@@ -219,16 +226,20 @@ function parseSemesterSheet(
 // ── Main Engine Runner ───────────────────────────────────────────────────────
 
 export interface SyncEngineOptions {
+  batchId?: string;
   semester: number | string;
   dryRun?: boolean;
   sheetUrl?: string;
   fileBuffer?: Buffer;
+  syncedBy?: string;
 }
 
 export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncResult> {
   const startTime = Date.now();
   const { semester, dryRun = false } = options;
-  const sheetUrl = options.sheetUrl || DEFAULT_SPREADSHEET_URL;
+  const batchId = options.batchId || '22_23';
+  const batchConfig = await getBatchConfig(batchId);
+  const sheetUrl = options.sheetUrl || batchConfig.googleSheetUrl || DEFAULT_SPREADSHEET_URL;
 
   // 1. Acquire Workbook Buffer
   let buffer: Buffer;
@@ -268,12 +279,12 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
     sheetsFound.push(resolved);
   }
 
-  // 4. Parse Sheets
+  // 4. Parse Sheets with Batch Prefix Filter
   const parsedResults: SheetParseResult[] = [];
   let totalValidGradesInSheets = 0;
 
   for (const item of semestersToSync) {
-    const res = parseSemesterSheet(workbook, item.sheetName, item.semNum);
+    const res = parseSemesterSheet(workbook, item.sheetName, item.semNum, batchConfig.prefix);
     parsedResults.push(res);
     totalValidGradesInSheets += res.totalValidGrades;
   }
@@ -296,20 +307,16 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
     overwrittenGrades: Record<string, { oldVal: string; newVal: string }>;
     protectedGrades: Record<string, { studentVal: string; sheetVal: string }>;
     sheetGrades: Record<string, string>;
-    finalYear: number;
     isNewDoc: boolean;
   }
 
   const studentPlans = new Map<string, AggregatedStudentPlan>();
 
   for (const sheetRes of parsedResults) {
-    const semTargetYear = Math.ceil(sheetRes.semesterNumber / 2);
-
     for (const student of sheetRes.students) {
       let plan = studentPlans.get(student.regNo);
       if (!plan) {
         const existing = existingDocs.get(student.regNo);
-        const existingYear = existing?.year || 1;
         plan = {
           regNo: student.regNo,
           name: student.name,
@@ -317,7 +324,6 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
           overwrittenGrades: {},
           protectedGrades: {},
           sheetGrades: {},
-          finalYear: existing ? Math.max(existingYear, semTargetYear) : semTargetYear,
           isNewDoc: !existing,
         };
         studentPlans.set(student.regNo, plan);
@@ -355,10 +361,6 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
             newVal: sheetGrade,
           };
         }
-      }
-
-      if (sheetRes.totalValidGrades > 0) {
-        plan.finalYear = Math.max(plan.finalYear, semTargetYear);
       }
     }
   }
@@ -398,8 +400,7 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
     if (
       newKeys.length === 0 &&
       overwrittenKeys.length === 0 &&
-      !hasNewSeededSnapshotEntries &&
-      (!existing || existing.year >= plan.finalYear)
+      !hasNewSeededSnapshotEntries
     ) {
       continue;
     }
@@ -432,11 +433,11 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
         ref: docRef,
         data: {
           regNo,
+          batchId: batchConfig.id,
           nameWithInitials: plan.name,
           fullName: plan.name,
           email,
           programme: getProgramme(regNo),
-          year: plan.finalYear,
           grades: mergedGrades,
           selectedElectives: {},
           lastUpdated: FieldValue.serverTimestamp(),
@@ -491,7 +492,6 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
         ref: docRef,
         data: {
           grades: mergedGrades,
-          year: Math.max(existing.year || 1, plan.finalYear),
           lastUpdated: FieldValue.serverTimestamp(),
           isSeeded: true,
           seededCourses: updatedSeededCourses,
@@ -527,6 +527,28 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
 
       await batch.commit();
     }
+
+    // Record last sync metadata on batches/{batchId}
+    try {
+      await db.collection('batches').doc(batchConfig.id).set(
+        {
+          lastSyncedAt: FieldValue.serverTimestamp(),
+          lastSyncedBy: options.syncedBy || 'admin',
+          lastSyncStats: {
+            totalStudentsParsed: studentPlans.size,
+            studentsUpdated,
+            studentsCreated,
+            totalGradesAdded,
+            totalGradesOverwritten,
+            totalGradesProtected,
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (bErr) {
+      console.warn(`[sync-engine] Could not record batch ${batchConfig.id} stats:`, bErr);
+    }
   }
 
   const durationMs = Date.now() - startTime;
@@ -535,6 +557,7 @@ export async function runSyncEngine(options: SyncEngineOptions): Promise<SyncRes
   return {
     success: true,
     dryRun,
+    batchId: batchConfig.id,
     targetSemester: semester,
     sheetsFound,
     totalStudentsParsed: studentPlans.size,

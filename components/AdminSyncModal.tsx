@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Database, 
@@ -11,10 +11,14 @@ import {
   ShieldCheck, 
   ChevronDown, 
   ChevronUp,
-  Settings2
+  Settings2,
+  Save,
+  Layers,
+  Clock,
+  Check
 } from 'lucide-react';
 import { useAuth } from './AuthProvider';
-import { triggerDatabaseSync } from '../lib/api-client';
+import { triggerDatabaseSync, fetchBatches, updateBatchConfig, type BatchItem } from '../lib/api-client';
 import { SyncResult, DEFAULT_SPREADSHEET_URL } from '../types';
 
 interface AdminSyncModalProps {
@@ -28,16 +32,98 @@ export default function AdminSyncModal({
   onClose,
   onSyncSuccess,
 }: AdminSyncModalProps) {
-  const { regNo } = useAuth();
+  const { regNo, adminScope, batchId: userBatchId } = useAuth();
 
+  const [batches, setBatches] = useState<BatchItem[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<string>('22_23');
   const [semester, setSemester] = useState<string>('all');
   const [isDryRun, setIsDryRun] = useState<boolean>(true);
   const [sheetUrl, setSheetUrl] = useState<string>(DEFAULT_SPREADSHEET_URL);
   const [showConfig, setShowConfig] = useState<boolean>(false);
+  const [isSavingUrl, setIsSavingUrl] = useState<boolean>(false);
+  const [urlSaveSuccess, setUrlSaveSuccess] = useState<boolean>(false);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [result, setResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState<boolean>(false);
+  const [isLoadingBatches, setIsLoadingBatches] = useState<boolean>(false);
+
+  // Load batches configuration when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    setIsLoadingBatches(true);
+
+    fetchBatches()
+      .then((data) => {
+        if (!isMounted) return;
+        setBatches(data.batches);
+
+        // Determine default batch
+        let initialBatchId = '22_23';
+        if (!data.isSuperAdmin && data.allowedBatches.length > 0) {
+          initialBatchId = data.allowedBatches[0];
+        } else if (userBatchId && data.batches.some((b) => b.id === userBatchId)) {
+          initialBatchId = userBatchId;
+        }
+
+        setSelectedBatchId(initialBatchId);
+        const currentBatch = data.batches.find((b) => b.id === initialBatchId);
+        if (currentBatch?.googleSheetUrl) {
+          setSheetUrl(currentBatch.googleSheetUrl);
+        }
+      })
+      .catch((err) => {
+        console.warn('[AdminSyncModal] Error fetching batches:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingBatches(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, userBatchId]);
+
+  // Update sheet URL when selected batch changes
+  const handleSelectBatch = (batchId: string) => {
+    setSelectedBatchId(batchId);
+    setResult(null);
+    setError(null);
+    setUrlSaveSuccess(false);
+
+    const b = batches.find((item) => item.id === batchId);
+    if (b?.googleSheetUrl) {
+      setSheetUrl(b.googleSheetUrl);
+    } else {
+      setSheetUrl(DEFAULT_SPREADSHEET_URL);
+    }
+  };
+
+  const handleSaveSheetUrl = async () => {
+    if (!sheetUrl.trim()) return;
+    setIsSavingUrl(true);
+    setUrlSaveSuccess(false);
+    setError(null);
+
+    try {
+      await updateBatchConfig({
+        batchId: selectedBatchId,
+        googleSheetUrl: sheetUrl.trim(),
+      });
+      setUrlSaveSuccess(true);
+      // Update local state
+      setBatches((prev) =>
+        prev.map((b) => (b.id === selectedBatchId ? { ...b, googleSheetUrl: sheetUrl.trim() } : b))
+      );
+      setTimeout(() => setUrlSaveSuccess(false), 3000);
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to save spreadsheet URL');
+    } finally {
+      setIsSavingUrl(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -49,9 +135,10 @@ export default function AdminSyncModal({
 
     try {
       const res = await triggerDatabaseSync({
+        batchId: selectedBatchId,
         semester: semester === 'all' ? 'all' : Number(semester),
         dryRun: dryRunMode,
-        sheetUrl: sheetUrl.trim() !== DEFAULT_SPREADSHEET_URL ? sheetUrl.trim() : undefined,
+        sheetUrl: sheetUrl.trim() || undefined,
       });
 
       setResult(res);
@@ -66,17 +153,8 @@ export default function AdminSyncModal({
     }
   };
 
-  const semestersList = [
-    { id: 'all', label: 'All Semesters' },
-    { id: '1', label: 'Sem 1' },
-    { id: '2', label: 'Sem 2' },
-    { id: '3', label: 'Sem 3' },
-    { id: '4', label: 'Sem 4' },
-    { id: '5', label: 'Sem 5' },
-    { id: '6', label: 'Sem 6' },
-    { id: '7', label: 'Sem 7' },
-    { id: '8', label: 'Sem 8' },
-  ];
+  const currentBatchMeta = batches.find((b) => b.id === selectedBatchId);
+  const isSuperAdmin = adminScope?.isSuperAdmin;
 
   return (
     <div
@@ -101,6 +179,11 @@ export default function AdminSyncModal({
                 <span className="font-mono text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
                   {regNo || 'Admin'}
                 </span>
+                {isSuperAdmin && (
+                  <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    Super Admin
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -118,6 +201,85 @@ export default function AdminSyncModal({
         {/* Content */}
         <div className="p-4 sm:p-5 space-y-4 max-h-[80vh] overflow-y-auto">
           
+          {/* Target Batch Selector */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="h-3 w-3" />
+                Target Batch
+              </label>
+              {currentBatchMeta?.lastSyncedAt && (
+                <span className="text-[10px] text-muted flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5" />
+                  Synced {new Date(currentBatchMeta.lastSyncedAt).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+
+            {isSuperAdmin ? (
+              /* Super Admin can toggle any batch */
+              <div className="grid grid-cols-2 gap-2">
+                {batches.length > 0 ? (
+                  batches.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => handleSelectBatch(b.id)}
+                      className={`py-2 px-3 text-xs font-medium rounded-xl border text-left transition-all cursor-pointer ${
+                        selectedBatchId === b.id
+                          ? 'border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold shadow-2xs'
+                          : 'border-border bg-surface text-secondary hover:text-foreground hover:bg-raised'
+                      }`}
+                    >
+                      <div className="font-semibold">{b.label}</div>
+                      <div className="text-[10px] text-muted font-mono mt-0.5">Prefix {b.prefix}•••</div>
+                    </button>
+                  ))
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBatch('22_23')}
+                      className={`py-2 px-3 text-xs font-medium rounded-xl border transition-all ${
+                        selectedBatchId === '22_23'
+                          ? 'border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold'
+                          : 'border-border bg-surface text-secondary'
+                      }`}
+                    >
+                      2022/2023 Batch
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBatch('23_24')}
+                      className={`py-2 px-3 text-xs font-medium rounded-xl border transition-all ${
+                        selectedBatchId === '23_24'
+                          ? 'border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold'
+                          : 'border-border bg-surface text-secondary'
+                      }`}
+                    >
+                      2023/2024 Batch
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              /* Batch-specific Admin: Locked view */
+              <div className="p-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                    {currentBatchMeta?.label || (selectedBatchId === '23_24' ? '2023/2024 Batch' : '2022/2023 Batch')}
+                  </div>
+                  <div className="text-[10px] text-secondary">
+                    Scoped batch administrator access
+                  </div>
+                </div>
+                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface border border-border text-foreground font-semibold">
+                  Batch {selectedBatchId}
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Target Semester Pills */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-secondary uppercase tracking-wider">
@@ -143,7 +305,7 @@ export default function AdminSyncModal({
                   className={`py-1.5 px-2 text-xs font-medium rounded-lg border transition-all text-center cursor-pointer ${
                     semester === s
                       ? 'border-indigo-500 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold'
-                    : 'border-border bg-surface text-secondary hover:text-foreground hover:bg-raised'
+                      : 'border-border bg-surface text-secondary hover:text-foreground hover:bg-raised'
                   }`}
                 >
                   Sem {s}
@@ -184,7 +346,7 @@ export default function AdminSyncModal({
             <p className="text-[11px] text-secondary">
               {isDryRun
                 ? 'Safe mode: compares grades and computes diffs without modifying Firestore.'
-                : 'Commit mode: directly updates student documents in Firestore.'}
+                : 'Commit mode: non-destructively merges sheet grades into student documents.'}
             </p>
           </div>
 
@@ -194,7 +356,7 @@ export default function AdminSyncModal({
             <span>Student-modified grades are preserved and never overwritten.</span>
           </div>
 
-          {/* Optional Config Toggle */}
+          {/* Dedicated Google Sheet Configuration per Batch */}
           <div className="pt-0.5">
             <button
               type="button"
@@ -202,11 +364,18 @@ export default function AdminSyncModal({
               className="inline-flex items-center gap-1.5 text-[11px] text-secondary hover:text-foreground transition-colors cursor-pointer"
             >
               <Settings2 className="h-3 w-3" />
-              <span>{showConfig ? 'Hide spreadsheet URL' : 'Configure custom spreadsheet URL'}</span>
+              <span>
+                {showConfig
+                  ? `Hide ${currentBatchMeta?.label || selectedBatchId} spreadsheet URL`
+                  : `Configure ${currentBatchMeta?.label || selectedBatchId} spreadsheet URL`}
+              </span>
             </button>
 
             {showConfig && (
-              <div className="mt-2 p-2.5 rounded-xl border border-border bg-raised/30 space-y-1.5 animate-in fade-in duration-100">
+              <div className="mt-2 p-3 rounded-xl border border-border bg-raised/30 space-y-2 animate-in fade-in duration-100">
+                <div className="text-[11px] font-medium text-foreground">
+                  Google Sheet for {currentBatchMeta?.label || selectedBatchId}:
+                </div>
                 <input
                   type="url"
                   value={sheetUrl}
@@ -214,13 +383,32 @@ export default function AdminSyncModal({
                   className="w-full text-[11px] font-mono px-2.5 py-1.5 rounded-md border border-border bg-surface text-foreground focus:outline-none focus:border-indigo-500"
                   placeholder="https://docs.google.com/spreadsheets/d/..."
                 />
-                <button
-                  type="button"
-                  onClick={() => setSheetUrl(DEFAULT_SPREADSHEET_URL)}
-                  className="text-[10px] text-indigo-500 hover:underline"
-                >
-                  Reset to default sheet URL
-                </button>
+                
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setSheetUrl(DEFAULT_SPREADSHEET_URL)}
+                    className="text-[10px] text-indigo-500 hover:underline cursor-pointer"
+                  >
+                    Reset to default URL
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveSheetUrl}
+                    disabled={isSavingUrl}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingUrl ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : urlSaveSuccess ? (
+                      <Check className="h-3 w-3 text-emerald-300" />
+                    ) : (
+                      <Save className="h-3 w-3" />
+                    )}
+                    <span>{urlSaveSuccess ? 'Saved!' : 'Save Sheet URL'}</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -292,7 +480,7 @@ export default function AdminSyncModal({
                     <div className="p-2.5 rounded-lg border border-border bg-surface max-h-40 overflow-y-auto font-mono text-[10.5px] space-y-1 text-secondary">
                       {result.sampleDiff.map((d) => (
                         <div key={d.regNo} className="truncate">
-                          <strong className="text-foreground">[{d.regNo}]</strong> {d.details.join(', ') || 'Year updated'}
+                          <strong className="text-foreground">[{d.regNo}]</strong> {d.details.join(', ') || 'Grades updated'}
                         </div>
                       ))}
                     </div>

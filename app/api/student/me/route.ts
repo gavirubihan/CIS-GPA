@@ -28,8 +28,9 @@ import {
   serverEmailToRegNo,
   isUniversityEmail,
   isValidRegNo,
-  isAuthorizedAdmin,
+  getAdminScope,
 } from '@/lib/firebase-admin';
+import { getBatchFromRegNo } from '@/lib/batch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,8 +58,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const isAdmin = isAuthorizedAdmin(email);
-    console.log(`[api/student/me] User: ${email} | isAdmin: ${isAdmin}`);
+    const batchInfo = getBatchFromRegNo(regNo);
+    const adminScope = await getAdminScope(email);
+    console.log(`[api/student/me] User: ${email} | isAdmin: ${adminScope.isAdmin} | isSuper: ${adminScope.isSuperAdmin} | batches: ${adminScope.allowedBatches.join(',')}`);
 
     // ── 4. Fetch only this student's document ─────────────────────────────────
     let snap;
@@ -66,16 +68,37 @@ export async function GET(req: NextRequest) {
       snap = await adminDb.collection('students').doc(regNo).get();
     } catch (dbErr: any) {
       console.warn('[api/student/me] Could not read student doc from Firestore:', dbErr?.message || dbErr);
-      return NextResponse.json({ record: null, regNo, isAdmin });
+      return NextResponse.json({
+        record: null,
+        regNo,
+        batchId: batchInfo.batchId,
+        batchLabel: batchInfo.batchLabel,
+        isAdmin: adminScope.isAdmin,
+        adminScope,
+      });
     }
     if (!snap.exists) {
       // Not in DB yet — not an error, student can enter grades manually
-      return NextResponse.json({ record: null, regNo, isAdmin });
+      return NextResponse.json({
+        record: null,
+        regNo,
+        batchId: batchInfo.batchId,
+        batchLabel: batchInfo.batchLabel,
+        isAdmin: adminScope.isAdmin,
+        adminScope,
+      });
     }
 
     const rawData = snap.data();
     if (!rawData) {
-      return NextResponse.json({ record: null, regNo, isAdmin });
+      return NextResponse.json({
+        record: null,
+        regNo,
+        batchId: batchInfo.batchId,
+        batchLabel: batchInfo.batchLabel,
+        isAdmin: adminScope.isAdmin,
+        adminScope,
+      });
     }
 
     const isSeeded = Boolean(rawData.isSeeded);
@@ -93,6 +116,7 @@ export async function GET(req: NextRequest) {
 
     const record = {
       ...rawData,
+      batchId: rawData.batchId || batchInfo.batchId,
       isSeeded,
       isModifiedByStudent: studentModifiedCourses.length > 0,
       seededCourses,
@@ -101,7 +125,14 @@ export async function GET(req: NextRequest) {
       seededGrades,
     };
 
-    return NextResponse.json({ record, regNo, isAdmin });
+    return NextResponse.json({
+      record,
+      regNo,
+      batchId: batchInfo.batchId,
+      batchLabel: batchInfo.batchLabel,
+      isAdmin: adminScope.isAdmin,
+      adminScope,
+    });
 
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
