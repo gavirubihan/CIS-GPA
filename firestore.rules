@@ -138,10 +138,11 @@ service cloud.firestore {
     }
 
     // ── /batches/{batchId} ───────────────────────────────────
-    // Batch configuration & metadata (read-only from client, writes via Admin SDK)
+    // Batch configuration & metadata contains sensitive master Google Sheet URLs
+    // and admin assignments. Client access is blocked entirely; all operations
+    // must go through authenticated server API routes via the Admin SDK.
     match /batches/{batchId} {
-      allow read: if request.auth != null && isUniversityAccount();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     // ── /meta/{doc} ──────────────────────────────────────────
