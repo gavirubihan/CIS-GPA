@@ -154,10 +154,19 @@ function DashboardInner() {
           setStudentModifiedCourses(smCourses);
           setSeededGrades(sGrades);
 
-          // If student has Year 2 grades, default active tab to year2
-          const hasYear2 = Object.keys(recGrades).some((k) => k.startsWith('IS3') || k.startsWith('IS4'));
-          if (hasYear2) {
+          // Determine default active tab dynamically based on highest graded courses
+          const gradeKeys = Object.keys(recGrades);
+          const hasYear4 = gradeKeys.some((k) => k.startsWith('IS7') || k.startsWith('IS8'));
+          const hasYear3 = gradeKeys.some((k) => k.startsWith('IS5') || k.startsWith('IS6'));
+          const hasYear2 = gradeKeys.some((k) => k.startsWith('IS3') || k.startsWith('IS4'));
+          if (hasYear4) {
+            setActiveTab('year4');
+          } else if (hasYear3) {
+            setActiveTab('year3');
+          } else if (hasYear2) {
             setActiveTab('year2');
+          } else {
+            setActiveTab('year1');
           }
 
           setDbStudentName(record.nameWithInitials || record.fullName);
@@ -315,6 +324,18 @@ function DashboardInner() {
     [userGrades, selectedElectives]
   );
 
+  const savedStats = useMemo(
+    () => calculateAllStats(savedGrades, savedElectives),
+    [savedGrades, savedElectives]
+  );
+
+  const scrollToMobileSummary = () => {
+    const el = document.getElementById('summary-card-mobile');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const handleGradeChange = (code: string, grade: string) => {
     setUserGrades((prev) => {
       const next = { ...prev };
@@ -372,8 +393,8 @@ function DashboardInner() {
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200 pb-16 print:min-h-0 print:pb-0 print:p-0 print:bg-white">
-      {/* 56px Top Bar (Hidden in print) */}
-      <div className="no-print print:hidden">
+      {/* 56px Top Bar (Sticky on Desktop, scrolls naturally on Mobile) */}
+      <div className="sm:sticky sm:top-0 sm:z-40 no-print print:hidden">
         <TopBar
           onExport={handleExport}
           onOpenTranscript={() => setIsTranscriptOpen(true)}
@@ -403,7 +424,7 @@ function DashboardInner() {
         </div>
 
         {/* 2-Column Desktop Layout: Main (8/12) and Sticky Side Panel (4/12) */}
-        <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 items-start">
+        <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12">
           
           {/* Main Column (8/12) */}
           <main className="lg:col-span-8 space-y-6 sm:space-y-8 min-w-0">
@@ -412,6 +433,8 @@ function DashboardInner() {
               activeTab={activeTab}
               onSelectTab={setActiveTab}
               yearlyStats={stats.yearlyStats}
+              cumulativeGpa={stats.currentFgpa}
+              onScrollToSummary={scrollToMobileSummary}
             />
 
             {activeTab === 'planner' ? (
@@ -457,7 +480,7 @@ function DashboardInner() {
           </main>
 
           {/* Desktop Sticky Side Panel (4/12) */}
-          <aside className="hidden lg:block lg:col-span-4">
+          <aside className="hidden lg:block lg:col-span-4 h-full">
             <div className="sticky top-20">
               <SummaryCard
                 id="summary-card-desktop"
@@ -478,6 +501,8 @@ function DashboardInner() {
           isSaving={isSaving}
           onSave={handleSave}
           onDiscard={handleDiscard}
+          currentGpa={stats.currentFgpa}
+          savedGpa={savedStats.currentFgpa}
         />
       </div>
 

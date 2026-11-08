@@ -22,7 +22,8 @@ export default function SummaryCard({
 }: SummaryCardProps) {
   const { currentFgpa, classAward, yearlyStats, overallGradedCredits } = stats;
 
-  const [activeTickHover, setActiveTickHover] = useState<string | null>(null);
+  const [selectedTick, setSelectedTick] = useState<number | null>(null);
+  const [hoveredTick, setHoveredTick] = useState<number | null>(null);
 
   // Semantic color for class dot & progress
   const getSemanticColor = (fgpa: number) => {
@@ -40,15 +41,20 @@ export default function SummaryCard({
 
   // Threshold ticks definition
   const ticks = [
-    { value: 2.0, pos: '50.0%', label: 'Pass: 2.00' },
-    { value: 2.7, pos: '67.5%', label: 'Second Lower: 2.70' },
-    { value: 3.3, pos: '82.5%', label: 'Second Upper: 3.30' },
-    { value: 3.7, pos: '92.5%', label: 'First Class: 3.70' },
+    { value: 2.0, pos: '50.0%', label: 'Pass', fullLabel: 'Pass: 2.00', min: '2.00', color: '#A1A1AA' },
+    { value: 2.7, pos: '67.5%', label: '2nd Lower', fullLabel: 'Second Lower: 2.70', min: '2.70', color: '#F59E0B' },
+    { value: 3.3, pos: '82.5%', label: '2nd Upper', fullLabel: 'Second Upper: 3.30', min: '3.30', color: '#3B82F6' },
+    { value: 3.7, pos: '92.5%', label: '1st Class', fullLabel: 'First Class: 3.70', min: '3.70', color: '#10B981' },
   ];
+
+  const activeTickValue = hoveredTick ?? selectedTick;
+  const activeTick = ticks.find((t) => t.value === activeTickValue);
+  const nextMilestone = ticks.find((t) => currentFgpa < t.value);
 
   return (
     <div
       id={id}
+      onClick={() => setSelectedTick(null)}
       className="rounded-[12px] border border-border bg-surface p-5 sm:p-6 shadow-[var(--card-shadow)] transition-colors"
       aria-label="Cumulative Academic Standing"
     >
@@ -105,39 +111,120 @@ export default function SummaryCard({
             }}
           />
 
-          {/* Threshold ticks */}
-          {ticks.map((tick) => (
-            <div
-              key={tick.value}
-              className="group absolute top-0 -translate-x-1/2 cursor-pointer"
-              style={{ left: tick.pos }}
-              onMouseEnter={() => setActiveTickHover(tick.label)}
-              onMouseLeave={() => setActiveTickHover(null)}
-            >
-              {/* 1px Hairline tick line */}
-              <div className="h-2.5 w-px bg-border group-hover:bg-foreground -mt-0.5 transition-colors" />
+          {/* Threshold ticks - with accessible 32px touch targets for mobile */}
+          {ticks.map((tick) => {
+            const isSelected = selectedTick === tick.value;
+            const isHovered = hoveredTick === tick.value;
+            const isActive = isSelected || isHovered;
+            const isAchieved = currentFgpa >= tick.value;
 
-              {/* Tooltip on hover */}
-              <div className="pointer-events-none absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap rounded-md bg-[#18181B] dark:bg-[#26262E] px-2 py-0.5 text-[10px] font-medium text-[#F4F4F5] shadow-xs border border-[#3F3F46] dark:border-[#3A3A46] z-20">
-                {tick.label}
-              </div>
-            </div>
-          ))}
+            return (
+              <button
+                key={tick.value}
+                type="button"
+                role="button"
+                aria-label={`${tick.fullLabel} threshold`}
+                aria-pressed={isSelected}
+                className="group absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-full transition-transform active:scale-95"
+                style={{ left: tick.pos }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedTick((prev) => (prev === tick.value ? null : tick.value));
+                }}
+                onMouseEnter={() => setHoveredTick(tick.value)}
+                onMouseLeave={() => setHoveredTick(null)}
+              >
+                {/* Visual hairline tick */}
+                <div
+                  className={`w-[1.5px] rounded-full transition-all duration-150 ${
+                    isActive
+                      ? 'h-3.5 bg-foreground scale-125 shadow-xs'
+                      : isAchieved
+                      ? 'h-2.5 bg-foreground/70 group-hover:bg-foreground group-hover:h-3.5'
+                      : 'h-2.5 bg-border group-hover:bg-foreground group-hover:h-3.5'
+                  }`}
+                />
+
+                {/* Tooltip on hover or mobile tap */}
+                <div
+                  className={`pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#18181B] dark:bg-[#26262E] px-2 py-0.5 text-[10px] font-medium text-[#F4F4F5] shadow-xs border border-[#3F3F46] dark:border-[#3A3A46] z-30 transition-all duration-150 ${
+                    isActive ? 'block opacity-100 scale-100' : 'hidden group-hover:block'
+                  }`}
+                >
+                  {tick.fullLabel}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Dynamic tick hover notice or subtle scale */}
-        <div className="mt-2 h-4 flex items-center justify-between text-[11px] text-secondary">
-          {activeTickHover ? (
-            <span className="text-foreground transition-opacity font-medium">
-              {activeTickHover}
-            </span>
-          ) : (
-            <>
-              <span>0.00</span>
-              <span className="text-[10px]">Hover ticks for boundaries</span>
-              <span>4.00</span>
-            </>
-          )}
+        {/* Dynamic scale info: 0.00, active tick info or next milestone, 4.00 */}
+        <div className="mt-2.5 flex items-center justify-between text-[11px] text-secondary">
+          <span className="font-mono tabular-nums">0.00</span>
+          <div className="text-center font-medium px-1 truncate">
+            {activeTick ? (
+              <span className="text-foreground transition-all">
+                {activeTick.fullLabel}
+                {currentFgpa >= activeTick.value ? (
+                  <span className="text-emerald-500 ml-1.5 font-semibold">✓ Achieved</span>
+                ) : (
+                  <span className="text-accent ml-1.5 font-semibold">
+                    (+{(activeTick.value - currentFgpa).toFixed(2)} to reach)
+                  </span>
+                )}
+              </span>
+            ) : nextMilestone ? (
+              <span className="text-secondary">
+                Next: <span className="text-foreground font-medium">{nextMilestone.label}</span> ({nextMilestone.min}){' '}
+                <span className="text-accent font-semibold">
+                  +{(nextMilestone.value - currentFgpa).toFixed(2)}
+                </span>
+              </span>
+            ) : (
+              <span className="text-emerald-500 font-medium">First Class Secured (≥ 3.70)</span>
+            )}
+          </div>
+          <span className="font-mono tabular-nums">4.00</span>
+        </div>
+
+        {/* Mobile & Desktop Touch-Friendly Boundary Pills */}
+        <div className="mt-2.5 grid grid-cols-4 gap-1.5 pt-2 border-t border-border-hairline/80">
+          {ticks.map((tick) => {
+            const isAchieved = currentFgpa >= tick.value;
+            const isSelected = (selectedTick === tick.value) || (hoveredTick === tick.value);
+
+            return (
+              <button
+                key={tick.value}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedTick((prev) => (prev === tick.value ? null : tick.value));
+                }}
+                className={`group flex flex-col items-center justify-center rounded-lg py-1.5 px-1 transition-all text-center cursor-pointer select-none ${
+                  isSelected
+                    ? 'bg-accent/15 border border-accent/50 shadow-xs ring-1 ring-accent/30'
+                    : isAchieved
+                    ? 'bg-raised/70 hover:bg-raised border border-border/70 hover:border-border'
+                    : 'bg-raised/30 hover:bg-raised/60 border border-transparent hover:border-border/40'
+                }`}
+                title={`Click to view ${tick.fullLabel}`}
+              >
+                <div className="flex items-center gap-1 min-w-0">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: tick.color }}
+                  />
+                  <span className="text-[10px] font-semibold text-foreground truncate">
+                    {tick.label}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono tabular-nums text-secondary leading-none mt-0.5">
+                  ≥ {tick.min}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

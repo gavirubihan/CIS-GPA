@@ -42,7 +42,7 @@ export default function TopBar({
   isSaving = false,
   onSave,
 }: TopBarProps) {
-  const { user, regNo, programme, isAdmin } = useAuth();
+  const { user, regNo, programme, isAdmin, batchLabel } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +89,7 @@ export default function TopBar({
               GPA Calculator
             </span>
             <span className="hidden sm:inline text-xs text-secondary truncate">
-              BSc (Hons) CIS / IS
+              BSc (Hons) CIS / IS {batchLabel ? `• ${batchLabel}` : ''}
             </span>
           </div>
 
@@ -225,7 +225,7 @@ export default function TopBar({
                     </p>
                   )}
                   <p className="text-secondary mt-1 text-[11px]">
-                    {progLabel}
+                    {progLabel} {batchLabel ? `(${batchLabel})` : ''}
                   </p>
                   {isAdmin && (
                     <div className="mt-2 flex items-center">
@@ -245,11 +245,11 @@ export default function TopBar({
                         onOpenAdminSync();
                       }}
                       type="button"
-                      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors text-left font-semibold cursor-pointer"
+                      className="flex w-full min-h-[40px] items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors text-left font-semibold cursor-pointer"
                       role="menuitem"
                     >
-                      <Database className="h-4 w-4" strokeWidth={2} />
-                      <span>Database Sync Tool</span>
+                      <Database className="h-4 w-4" strokeWidth={1.75} />
+                      <span>Database Sync</span>
                     </button>
                   </div>
                 )}
@@ -271,21 +271,6 @@ export default function TopBar({
                     >
                       <CloudUpload className="h-4 w-4" strokeWidth={1.5} />
                       <span>Save changes ({unsavedCount})</span>
-                    </button>
-                  )}
-
-                  {isAdmin && onOpenAdminSync && (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onOpenAdminSync();
-                      }}
-                      type="button"
-                      className="flex w-full min-h-[44px] items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors text-left font-semibold"
-                      role="menuitem"
-                    >
-                      <Database className="h-4 w-4" strokeWidth={1.5} />
-                      <span>Database Sync (Admin)</span>
                     </button>
                   )}
 

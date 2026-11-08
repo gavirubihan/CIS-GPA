@@ -15,7 +15,8 @@ export interface StudentRecord {
   fullName: string;
   email: string;
   programme: 'CIS' | 'FIS' | 'unknown';
-  year: number;
+  batchId?: string;
+  year?: number;
   grades: Record<string, string>;
   selectedElectives: SelectedElectives;
   lastUpdated: unknown; // Firestore Timestamp
@@ -23,6 +24,7 @@ export interface StudentRecord {
   isModifiedByStudent: boolean;
   /** List of course codes pre-populated from the results sheet */
   seededCourses: string[];
+
   /** List of course codes modified, added, or cleared by the student */
   studentModifiedCourses: string[];
   /** Backward-compatibility alias */
@@ -234,10 +236,13 @@ export async function saveGrades(
   } else {
     // Document doesn't exist yet (student not seeded) — create a minimal record
     const audit = computeCourseAudit(safeGrades, {}, [], false);
+    const prefix = normalizedReg.slice(0, 2);
+    const batchId = `${prefix}_${Number(prefix) + 1}`;
     await setDoc(
       ref,
       {
         regNo: normalizedReg,
+        batchId,
         grades: safeGrades,
         selectedElectives: safeElectives,
         lastUpdated: serverTimestamp(),

@@ -106,6 +106,7 @@ export async function saveGradesViaApi(
  * Trigger Google Sheets to Firestore database synchronization (Admin only).
  */
 export async function triggerDatabaseSync(options: {
+  batchId?: string;
   semester: number | 'all';
   dryRun: boolean;
   sheetUrl?: string;
@@ -124,4 +125,60 @@ export async function triggerDatabaseSync(options: {
 
   return data;
 }
+
+export interface BatchItem {
+  id: string;
+  label: string;
+  prefix: string;
+  googleSheetUrl: string;
+  adminEmails: string[];
+  lastSyncedAt?: string | null;
+  lastSyncedBy?: string | null;
+  lastSyncStats?: {
+    totalStudentsParsed: number;
+    studentsUpdated: number;
+    studentsCreated: number;
+    totalGradesAdded: number;
+    totalGradesOverwritten: number;
+    totalGradesProtected: number;
+  };
+}
+
+/**
+ * Fetch list of batches and administrative permissions.
+ */
+export async function fetchBatches(): Promise<{
+  batches: BatchItem[];
+  isSuperAdmin: boolean;
+  allowedBatches: string[];
+}> {
+  const headers = await authHeaders();
+  const res = await fetch('/api/admin/batches', { headers });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to fetch batch settings');
+  }
+  return res.json();
+}
+
+/**
+ * Update Google Sheet URL or admin assignments for a specific batch.
+ */
+export async function updateBatchConfig(params: {
+  batchId: string;
+  googleSheetUrl?: string;
+  adminEmails?: string[];
+}): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch('/api/admin/batches', {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to update batch configuration');
+  }
+}
+
 
