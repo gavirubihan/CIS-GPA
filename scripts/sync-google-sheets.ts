@@ -25,7 +25,7 @@
  *   npx tsx scripts/sync-google-sheets.ts --semester 4
  */
 
-import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
+import { initializeApp, cert, getApps, type App } from 'firebase-admin/app';
 import { getFirestore, FieldValue, WriteBatch } from 'firebase-admin/firestore';
 import * as xlsx from 'xlsx';
 import * as path from 'path';
